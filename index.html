@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wurzel-Memory</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const WurzelMemory = () => {
+      // Wurzelaufgaben und Lösungen als Paare definieren
+      const pairs = [
+        { question: '\\sqrt{169}', answer: '13' },
+        { question: '\\sqrt{a^2}', answer: '\\lvert a\\rvert' },
+        { question: '\\sqrt{9}+\\sqrt{16}', answer: '7' },
+        { question: '\\sqrt{a^2-2ab+b^2}', answer: '\\lvert a-b\\rvert' },
+        { question: '\\sqrt{13+12}', answer: '5' },
+        { question: '\\sqrt{2^{100}}', answer: '2^{50}' },
+        { question: '\\sqrt{\\sqrt{16}}', answer: '2' },
+        { question: '\\sqrt{-9}', answer: '\\text{⚡}' },
+        { question: '\\sqrt{3-3}', answer: '0' },
+        { question: '\\sqrt{a^4}', answer: 'a^2' },
+        { question: '\\sqrt{2^0}', answer: '1' },
+        { question: '\\sqrt{n^3}', answer: '\\lvert n\\rvert\\sqrt{n}' }
+      ];
+
+      // Fisher-Yates Shuffle Algorithmus
+      const shuffleArray = (array) => {
+        const newArray = [...array];
+        for (let i = newArray.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+        }
+        return newArray;
+      };
+
+      // Karten erstellen und mischen
+      const createCards = () => {
+        const cards = [];
+        pairs.forEach((pair, pairId) => {
+          cards.push({ id: `q-${pairId}`, content: pair.question, pairId, type: 'question' });
+          cards.push({ id: `a-${pairId}`, content: pair.answer, pairId, type: 'answer' });
+        });
+        return shuffleArray(cards);
+      };
+
+      const [cards, setCards] = useState(createCards);
+      const [flippedCards, setFlippedCards] = useState([]);
+      const [matchedPairs, setMatchedPairs] = useState([]);
+      const [currentPlayer, setCurrentPlayer] = useState(1);
+      const [scores, setScores] = useState({ player1: 0, player2: 0 });
+      const [isChecking, setIsChecking] = useState(false);
+
+      // Prüfen ob zwei aufgedeckte Karten ein Paar bilden
+      useEffect(() => {
+        if (flippedCards.length === 2) {
+          setIsChecking(true);
+          const [first, second] = flippedCards;
+          const firstCard = cards.find(c => c.id === first);
+          const secondCard = cards.find(c => c.id === second);
+
+          if (firstCard.pairId === secondCard.pairId) {
+            // Paar gefunden!
+            setTimeout(() => {
+              setMatchedPairs(prev => [...prev, firstCard.pairId]);
+              setScores(prev => ({
+                ...prev,
+                [`player${currentPlayer}`]: prev[`player${currentPlayer}`] + 1
+              }));
+              setFlippedCards([]);
+              setIsChecking(false);
+            }, 1000);
+          } else {
+            // Kein Paar - Karten wieder umdrehen und Spieler wechseln
+            setTimeout(() => {
+              setFlippedCards([]);
+              setCurrentPlayer(p => (p === 1 ? 2 : 1));
+              setIsChecking(false);
+            }, 2500);
+          }
+        }
+      }, [flippedCards]);
+
+      const handleCardClick = (cardId) => {
+        if (isChecking || flippedCards.includes(cardId) || matchedPairs.includes(cards.find(c => c.id === cardId).pairId)) {
+          return;
+        }
+
+        if (flippedCards.length < 2) {
+          setFlippedCards([...flippedCards, cardId]);
+        }
+      };
+
+      const resetGame = () => {
+        setCards(createCards());
+        setFlippedCards([]);
+        setMatchedPairs([]);
+        setCurrentPlayer(1);
+        setScores({ player1: 0, player2: 0 });
+        setIsChecking(false);
+      };
+
+      const isCardFlipped = (cardId) => {
+        const card = cards.find(c => c.id === cardId);
+        return flippedCards.includes(cardId) || matchedPairs.includes(card.pairId);
+      };
+
+      const isGameComplete = matchedPairs.length === pairs.length;
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8">
+          <div className="max-w-5xl mx-auto">
+            <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">Wurzel-Memory</h1>
+
+            {/* Spielerinfo */}
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+              <div className="flex justify-around items-center">
+                <div className={`text-center p-4 rounded-lg transition-all ${currentPlayer === 1 && !isGameComplete ? 'bg-red-100 ring-2 ring-red-500' : 'bg-gray-50'}`}>
+                  <div className="text-lg font-semibold text-gray-700">Spieler 1</div>
+                  <div className="text-3xl font-bold text-red-600">{scores.player1}</div>
+                </div>
+                <div className={`text-center p-4 rounded-lg transition-all ${currentPlayer === 2 && !isGameComplete ? 'bg-blue-100 ring-2 ring-blue-500' : 'bg-gray-50'}`}>
+                  <div className="text-lg font-semibold text-gray-700">Spieler 2</div>
+                  <div className="text-3xl font-bold text-blue-600">{scores.player2}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Spielfeld */}
+            <div className="grid grid-cols-4 gap-4 mb-8 max-w-4xl mx-auto">
+              {cards.map((card) => {
+                const flipped = isCardFlipped(card.id);
+                const matched = matchedPairs.includes(card.pairId);
+
+                return (
+                  <div
+                    key={card.id}
+                    onClick={() => handleCardClick(card.id)}
+                    className={`aspect-[3/2] cursor-pointer transition-all duration-300 transform ${
+                      !flipped ? 'hover:scale-105' : ''
+                    }`}
+                  >
+                    <div className={`w-full h-full rounded-lg shadow-md flex items-center justify-center p-3 text-lg font-bold transition-all duration-300 ${
+                      flipped
+                        ? matched
+                          ? 'bg-green-100 text-green-800'
+                          : card.type === 'question'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-blue-100 text-blue-800'
+                        : 'bg-gradient-to-br from-red-400 to-blue-500 text-white hover:from-red-500 hover:to-blue-600'
+                    }`}>
+                      {flipped ? (
+                        <MathRenderer content={card.content} />
+                      ) : (
+                        '?'
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Neues Spiel Button */}
+            <div className="text-center">
+              <button
+                onClick={resetGame}
+                className="bg-gradient-to-r from-red-500 to-blue-500 text-white px-8 py-3 rounded-lg font-semibold hover:from-red-600 hover:to-blue-600 transition-all shadow-lg"
+              >
+                Neues Spiel
+              </button>
+            </div>
+
+            {/* Gewinner-Anzeige */}
+            {isGameComplete && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-2xl p-8 max-w-md shadow-2xl">
+                  <h2 className="text-3xl font-bold text-center mb-4">Spiel beendet!</h2>
+                  <div className="text-center mb-6">
+                    {scores.player1 > scores.player2 ? (
+                      <div className="text-2xl text-red-600 font-bold">Spieler 1 gewinnt! 🎉</div>
+                    ) : scores.player2 > scores.player1 ? (
+                      <div className="text-2xl text-blue-600 font-bold">Spieler 2 gewinnt! 🎉</div>
+                    ) : (
+                      <div className="text-2xl text-gray-600 font-bold">Unentschieden! 🤝</div>
+                    )}
+                  </div>
+                  <div className="flex justify-around mb-6">
+                    <div className="text-center">
+                      <div className="text-gray-600">Spieler 1</div>
+                      <div className="text-4xl font-bold text-red-600">{scores.player1}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-gray-600">Spieler 2</div>
+                      <div className="text-4xl font-bold text-blue-600">{scores.player2}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={resetGame}
+                    className="w-full bg-gradient-to-r from-red-500 to-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:from-red-600 hover:to-blue-600 transition-all"
+                  >
+                    Nochmal spielen
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // Komponente zum Rendern von LaTeX-Formeln
+    const MathRenderer = ({ content }) => {
+      const ref = useRef(null);
+
+      useEffect(() => {
+        if (ref.current && window.katex) {
+          try {
+            window.katex.render(content, ref.current, {
+              throwOnError: false,
+              displayMode: false,
+              trust: true
+            });
+          } catch (e) {
+            ref.current.textContent = content;
+          }
+        }
+      }, [content]);
+
+      return <span ref={ref} className="text-base"></span>;
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<WurzelMemory />);
+  </script>
+</body>
+</html>
