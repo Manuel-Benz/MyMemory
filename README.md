@@ -21,8 +21,31 @@ $13$
 - LaTeX in `$...$` wird mit KaTeX gerendert, Text und LaTeX sind mischbar.
 - Bei mehr als 12 Paaren wählt jede Runde zufällig 12 aus.
 
-Danach committen und pushen – der Pages-Workflow generiert den Index
+Danach veröffentlichen (siehe Ablage) – der Pages-Workflow generiert den Index
 (`memories/index.json`) automatisch und deployt die Seite.
+
+## Ablage: Wo liegen die Memories?
+
+Wie bei MyKahoot liegen die Memories in einem lokalen Ordner deiner Wahl;
+das Repo ist nur die Veröffentlichungs-Kopie für die Website.
+
+```bash
+node publish.mjs --set-dir ~/Documents/Memories  # Ablage festlegen (einmalig);
+                                                 # ein leerer Ordner wird mit den
+                                                 # bisherigen Memories befüllt
+node publish.mjs --dir                           # zeigt die aktuelle Ablage
+node publish.mjs                                 # veröffentlichen: Ablage → Repo,
+                                                 # Commit, Push, Pages deployt
+node publish.mjs --set-dir ""                    # zurück auf Repo-Betrieb
+```
+
+Ohne Konfiguration gilt Repo-Betrieb: die Ablage ist `memories/` im Repo, und
+Veröffentlichen ist einfach `node publish.mjs` (oder git commit + push von Hand).
+Die Ordnerwahl liegt in `~/Library/Application Support/MyMemory/config.json`.
+
+**Beachte:** Alles, was veröffentlicht wird, landet im öffentlichen GitHub-Repo
+und ist über die Website für alle sichtbar. Was nicht öffentlich sein soll,
+gehört nur in die lokale Ablage, nicht in ein Memory, das du veröffentlichst.
 
 ## Direktlinks
 
