@@ -9,7 +9,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -17,39 +17,189 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    const MyMemory = () => {
-      // Wurzelaufgaben und Lösungen als Paare definieren
-      const pairs = [
-        { question: '\\sqrt{169}', answer: '13' },
-        { question: '\\sqrt{a^2}', answer: '\\lvert a\\rvert' },
-        { question: '\\sqrt{9}+\\sqrt{16}', answer: '7' },
-        { question: '\\sqrt{a^2-2ab+b^2}', answer: '\\lvert a-b\\rvert' },
-        { question: '\\sqrt{13+12}', answer: '5' },
-        { question: '\\sqrt{2^{100}}', answer: '2^{50}' },
-        { question: '\\sqrt{\\sqrt{16}}', answer: '2' },
-        { question: '\\sqrt{-9}', answer: '\\text{⚡}' },
-        { question: '\\sqrt{3-3}', answer: '0' },
-        { question: '\\sqrt{a^4}', answer: 'a^2' },
-        { question: '\\sqrt{2^0}', answer: '1' },
-        { question: '\\sqrt{n^3}', answer: '\\lvert n\\rvert\\sqrt{n}' }
-      ];
+    const MAX_PAIRS = 12; // grössere Sets werden pro Runde zufällig auf 12 Paare reduziert
 
-      // Fisher-Yates Shuffle Algorithmus
-      const shuffleArray = (array) => {
-        const newArray = [...array];
-        for (let i = newArray.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+    // ---------- Memory-Dateien (Markdown) ----------
+    // Format wie bei MyKahoot: "# Titel", dann pro Paar "## Vorderseite" +
+    // nächste nicht-leere Zeile als Rückseite. LaTeX in $...$.
+    const parseMemory = (md) => {
+      const pairs = [];
+      let title = null;
+      let question = null;
+      for (const raw of md.split(/\r?\n/)) {
+        const line = raw.trim();
+        if (!line) continue;
+        if (line.startsWith('## ')) { question = line.slice(3).trim(); continue; }
+        if (line.startsWith('# ')) { if (!title) title = line.slice(2).trim(); continue; }
+        if (question) { pairs.push({ question, answer: line }); question = null; }
+      }
+      return { title, pairs };
+    };
+
+    const memoryUrl = (id) =>
+      'memories/' + id.split('/').map(encodeURIComponent).join('/') + '.md';
+
+    const directLink = (id) =>
+      location.origin + location.pathname + '?memory=' + encodeURIComponent(id);
+
+    const idFromUrl = () =>
+      new URLSearchParams(location.search).get('memory');
+
+    // Fisher-Yates Shuffle Algorithmus
+    const shuffleArray = (array) => {
+      const newArray = [...array];
+      for (let i = newArray.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+      }
+      return newArray;
+    };
+
+    // ---------- LaTeX/Text gemischt rendern ----------
+    const MathRenderer = ({ content }) => {
+      const ref = useRef(null);
+
+      useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        el.innerHTML = '';
+        for (const part of content.split(/(\$[^$]+\$)/g)) {
+          if (!part) continue;
+          if (part.startsWith('$') && part.endsWith('$') && window.katex) {
+            const span = document.createElement('span');
+            try {
+              window.katex.render(part.slice(1, -1), span, { throwOnError: false, displayMode: false });
+            } catch (e) {
+              span.textContent = part;
+            }
+            el.appendChild(span);
+          } else {
+            el.appendChild(document.createTextNode(part));
+          }
         }
-        return newArray;
+      }, [content]);
+
+      return <span ref={ref} className="break-words [overflow-wrap:anywhere]"></span>;
+    };
+
+    // ---------- Auswahlseite ----------
+    const Selection = ({ index, error, onOpen }) => {
+      const [toast, setToast] = useState(null);
+
+      const copyLink = (id) => {
+        navigator.clipboard.writeText(directLink(id)).then(() => {
+          setToast('Direktlink kopiert!');
+          setTimeout(() => setToast(null), 2000);
+        });
       };
 
-      // Karten erstellen und mischen
+      // Ordnerbaum aus den Pfaden ableiten (wie bei MyKahoot: erst Unterordner, dann Einträge)
+      const dirsUnder = (parent) => {
+        const set = new Set();
+        for (const m of index.memories) {
+          if (!m.dir) continue;
+          const parts = m.dir.split('/');
+          for (let i = 1; i <= parts.length; i++) {
+            const d = parts.slice(0, i).join('/');
+            const pd = parts.slice(0, i - 1).join('/');
+            if (pd === parent) set.add(d);
+          }
+        }
+        return [...set].sort((a, b) => a.localeCompare(b, 'de'));
+      };
+
+      const renderDir = (dir) => (
+        <React.Fragment>
+          {dirsUnder(dir).map((sub) => (
+            <details key={sub} open className="mb-2">
+              <summary className="cursor-pointer select-none px-4 py-2 bg-white rounded-lg shadow font-semibold text-gray-700">
+                📁 {sub.split('/').pop()}
+              </summary>
+              <div className="ml-4 mt-2">{renderDir(sub)}</div>
+            </details>
+          ))}
+          {index.memories.filter((m) => m.dir === dir).map((m) => (
+            <div key={m.id} className="flex items-center gap-2 mb-2">
+              <button
+                onClick={() => onOpen(m.id)}
+                className="flex-1 text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all font-semibold text-gray-800"
+              >
+                🃏 {m.title}
+              </button>
+              <button
+                onClick={() => copyLink(m.id)}
+                title="Direktlink kopieren"
+                className="px-3 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-blue-50 transition-all"
+              >
+                🔗
+              </button>
+            </div>
+          ))}
+        </React.Fragment>
+      );
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8">
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-4xl font-bold text-center mb-2 text-gray-800">MyMemory</h1>
+            <p className="text-center text-gray-500 mb-8">Wähle ein Memory und finde die Paare!</p>
+            {error && <div className="text-center text-red-600 font-semibold">{error}</div>}
+            {!index && !error && <div className="text-center text-gray-500">Lade Memories…</div>}
+            {index && renderDir('')}
+          </div>
+          {toast && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg">
+              {toast}
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // ---------- Memory laden und Spiel starten ----------
+    const Game = ({ id, onBack }) => {
+      const [data, setData] = useState(null);
+      const [error, setError] = useState(null);
+
+      useEffect(() => {
+        setData(null);
+        setError(null);
+        fetch(memoryUrl(id))
+          .then((r) => { if (!r.ok) throw new Error(); return r.text(); })
+          .then((md) => {
+            const parsed = parseMemory(md);
+            if (!parsed.pairs.length) throw new Error();
+            setData(parsed);
+          })
+          .catch(() => setError(`Memory «${id}» wurde nicht gefunden.`));
+      }, [id]);
+
+      if (error) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8 flex flex-col items-center justify-center gap-4">
+            <div className="text-xl text-red-600 font-semibold">{error}</div>
+            <button onClick={onBack} className="bg-gradient-to-r from-red-500 to-blue-500 text-white px-6 py-3 rounded-lg font-semibold shadow-lg">
+              Zur Übersicht
+            </button>
+          </div>
+        );
+      }
+      if (!data) {
+        return <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8 text-center text-gray-500">Lade Memory…</div>;
+      }
+      return <MemoryGame title={data.title || id} allPairs={data.pairs} onBack={onBack} />;
+    };
+
+    // ---------- Das Memory-Spiel ----------
+    const MemoryGame = ({ title, allPairs, onBack }) => {
+      // Karten erstellen und mischen; grosse Sets pro Runde zufällig reduzieren
       const createCards = () => {
+        const pairs = shuffleArray(allPairs).slice(0, MAX_PAIRS);
         const cards = [];
-        pairs.forEach((pair, pairId) => {
-          cards.push({ id: `q-${pairId}`, content: pair.question, pairId, type: 'question' });
-          cards.push({ id: `a-${pairId}`, content: pair.answer, pairId, type: 'answer' });
+        pairs.forEach((pair, i) => {
+          const pairId = `${pair.question}::${pair.answer}`;
+          cards.push({ id: `q-${i}`, content: pair.question, pairId, type: 'question' });
+          cards.push({ id: `a-${i}`, content: pair.answer, pairId, type: 'answer' });
         });
         return shuffleArray(cards);
       };
@@ -60,6 +210,8 @@
       const [currentPlayer, setCurrentPlayer] = useState(1);
       const [scores, setScores] = useState({ player1: 0, player2: 0 });
       const [isChecking, setIsChecking] = useState(false);
+
+      const pairCount = cards.length / 2;
 
       // Prüfen ob zwei aufgedeckte Karten ein Paar bilden
       useEffect(() => {
@@ -115,12 +267,21 @@
         return flippedCards.includes(cardId) || matchedPairs.includes(card.pairId);
       };
 
-      const isGameComplete = matchedPairs.length === pairs.length;
+      const isGameComplete = matchedPairs.length === pairCount;
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8">
+        <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-4 sm:p-8">
           <div className="max-w-5xl mx-auto">
-            <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">MyMemory</h1>
+            <div className="relative mb-8">
+              <button
+                onClick={onBack}
+                title="Zur Übersicht"
+                className="absolute left-0 top-1/2 -translate-y-1/2 bg-white px-4 py-2 rounded-lg shadow hover:shadow-md transition-all font-semibold text-gray-700"
+              >
+                ← Übersicht
+              </button>
+              <h1 className="text-3xl sm:text-4xl font-bold text-center text-gray-800">{title}</h1>
+            </div>
 
             {/* Spielerinfo */}
             <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
@@ -137,7 +298,7 @@
             </div>
 
             {/* Spielfeld */}
-            <div className="grid grid-cols-4 gap-4 mb-8 max-w-4xl mx-auto">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 max-w-4xl mx-auto">
               {cards.map((card) => {
                 const flipped = isCardFlipped(card.id);
                 const matched = matchedPairs.includes(card.pairId);
@@ -150,7 +311,7 @@
                       !flipped ? 'hover:scale-105' : ''
                     }`}
                   >
-                    <div className={`w-full h-full rounded-lg shadow-md flex items-center justify-center p-3 text-lg font-bold transition-all duration-300 ${
+                    <div className={`w-full h-full rounded-lg shadow-md flex items-center justify-center p-2 sm:p-3 text-sm sm:text-lg font-bold text-center transition-all duration-300 ${
                       flipped
                         ? matched
                           ? 'bg-green-100 text-green-800'
@@ -169,6 +330,12 @@
                 );
               })}
             </div>
+
+            {allPairs.length > MAX_PAIRS && (
+              <div className="text-center text-sm text-gray-500 mb-4">
+                {pairCount} von {allPairs.length} Paaren – jede Runde eine neue Auswahl
+              </div>
+            )}
 
             {/* Neues Spiel Button */}
             <div className="text-center">
@@ -218,28 +385,40 @@
       );
     };
 
-    // Komponente zum Rendern von LaTeX-Formeln
-    const MathRenderer = ({ content }) => {
-      const ref = useRef(null);
+    // ---------- App: Auswahl vs. Spiel, Direktlinks via ?memory= ----------
+    const App = () => {
+      const [index, setIndex] = useState(null);
+      const [indexError, setIndexError] = useState(null);
+      const [current, setCurrent] = useState(idFromUrl());
 
       useEffect(() => {
-        if (ref.current && window.katex) {
-          try {
-            window.katex.render(content, ref.current, {
-              throwOnError: false,
-              displayMode: false,
-              trust: true
-            });
-          } catch (e) {
-            ref.current.textContent = content;
-          }
-        }
-      }, [content]);
+        fetch('memories/index.json')
+          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+          .then(setIndex)
+          .catch(() => setIndexError('Die Memory-Liste konnte nicht geladen werden.'));
+      }, []);
 
-      return <span ref={ref} className="text-base"></span>;
+      useEffect(() => {
+        const onPop = () => setCurrent(idFromUrl());
+        window.addEventListener('popstate', onPop);
+        return () => window.removeEventListener('popstate', onPop);
+      }, []);
+
+      const open = (id) => {
+        history.pushState({}, '', '?memory=' + encodeURIComponent(id));
+        setCurrent(id);
+      };
+      const back = () => {
+        history.pushState({}, '', location.pathname);
+        setCurrent(null);
+      };
+
+      return current
+        ? <Game key={current} id={current} onBack={back} />
+        : <Selection index={index} error={indexError} onOpen={open} />;
     };
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<MyMemory />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
