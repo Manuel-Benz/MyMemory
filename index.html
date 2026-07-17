@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wurzel-Memory</title>
+  <title>MyMemory</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
@@ -17,7 +17,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    const WurzelMemory = () => {
+    const MyMemory = () => {
       // Wurzelaufgaben und Lösungen als Paare definieren
       const pairs = [
         { question: '\\sqrt{169}', answer: '13' },
@@ -120,7 +120,7 @@
       return (
         <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8">
           <div className="max-w-5xl mx-auto">
-            <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">Wurzel-Memory</h1>
+            <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">MyMemory</h1>
 
             {/* Spielerinfo */}
             <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
@@ -239,7 +239,7 @@
       return <span ref={ref} className="text-base"></span>;
     };
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<WurzelMemory />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<MyMemory />);
   </script>
 </body>
 </html>
