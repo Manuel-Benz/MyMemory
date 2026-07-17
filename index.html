@@ -8,7 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
-  <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
+  <script defer src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
@@ -164,28 +164,35 @@
       return { title, pairs: rawPairs.map(([question, answer]) => ({ question, answer })) };
     };
 
-    const directLink = async (memory) => {
-      const demo = DEMOS.find((d) => d.id === memory.id);
-      const base = location.origin + location.pathname;
-      return demo ? `${base}#demo=${demo.id}` : `${base}#m=${await encodeMemory(memory)}`;
-    };
+    const demoById = (id) => DEMOS.find((d) => d.id === id);
 
     // ---------- Routing über das URL-Fragment ----------
+    // Hash-Formen: #demo=<id>, #local=<id>, #m=<daten> — gebaut nur via toHash,
+    // gelesen nur via getRoute.
+    const toHash = (memory) =>
+      demoById(memory.id) ? '#demo=' + memory.id : '#local=' + memory.id;
+
+    const directLink = async (memory) => {
+      const base = location.origin + location.pathname;
+      return demoById(memory.id) ? base + toHash(memory) : `${base}#m=${await encodeMemory(memory)}`;
+    };
+
     const getRoute = () => {
       const hash = location.hash.slice(1);
       if (hash.startsWith('m=')) return { type: 'data', data: hash.slice(2) };
       if (hash.startsWith('demo=')) return { type: 'demo', id: hash.slice(5) };
       if (hash.startsWith('local=')) return { type: 'local', id: hash.slice(6) };
-      // Alte Links (?memory=Mathematik/wurzeln) auf die Demos abbilden
-      const legacy = new URLSearchParams(location.search).get('memory');
-      if (legacy) {
-        const slug = legacy.split('/').pop();
-        const demo = DEMOS.find((d) => slug.includes(d.id));
-        history.replaceState(null, '', location.pathname + (demo ? '#demo=' + demo.id : ''));
-        if (demo) return { type: 'demo', id: demo.id };
-      }
       return null;
     };
+
+    // Alte Links (?memory=Mathematik/wurzeln) einmalig auf die Demos umschreiben,
+    // damit getRoute ein reiner Hash-Parser bleibt
+    (() => {
+      const legacy = new URLSearchParams(location.search).get('memory');
+      if (!legacy) return;
+      const demo = DEMOS.find((d) => legacy.split('/').pop().includes(d.id));
+      history.replaceState(null, '', location.pathname + (demo ? '#demo=' + demo.id : ''));
+    })();
 
     const shuffleArray = (array) => {
       const newArray = [...array];
@@ -223,6 +230,25 @@
       return <span ref={ref} className="break-words [overflow-wrap:anywhere]"></span>;
     };
 
+    // ---------- Gemeinsame Bausteine ----------
+    const SCREEN = 'min-h-screen bg-gradient-to-br from-red-50 to-blue-50';
+    const BTN_PRIMARY = 'bg-gradient-to-r from-red-500 to-blue-500 text-white rounded-lg font-semibold hover:from-red-600 hover:to-blue-600 transition-all shadow-lg';
+
+    const Modal = ({ children, onClose }) => (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          {children}
+        </div>
+      </div>
+    );
+
+    const IconButton = ({ onClick, title, hover = 'hover:bg-blue-50', children }) => (
+      <button onClick={onClick} title={title}
+        className={`px-3 py-3 bg-white rounded-lg shadow hover:shadow-md transition-all text-gray-500 ${hover}`}>
+        {children}
+      </button>
+    );
+
     // ---------- Abstrakte Symbole für Link und QR-Code ----------
     const LinkIcon = () => (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -244,38 +270,37 @@
 
     // ---------- QR-Code-Dialog ----------
     const QrModal = ({ title, url, onClose, onCopy }) => {
-      let svg = null;
-      try {
-        const qr = window.qrcode(0, 'M');
-        qr.addData(url);
-        qr.make();
-        svg = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true });
-      } catch (e) {
-        svg = null; // zu viele Daten für einen QR-Code
-      }
+      const svg = React.useMemo(() => {
+        try {
+          const qr = window.qrcode(0, 'M');
+          qr.addData(url);
+          qr.make();
+          return qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true });
+        } catch (e) {
+          return null; // zu viele Daten für einen QR-Code
+        }
+      }, [url]);
 
       return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold text-center mb-4 text-gray-800">{title}</h2>
-            {svg ? (
-              <div className="flex justify-center mb-4 [&>svg]:w-56 [&>svg]:h-56" dangerouslySetInnerHTML={{ __html: svg }} />
-            ) : (
-              <div className="text-center text-red-600 mb-4">
-                Dieses Memory ist zu gross für einen QR-Code — nutze den Direktlink.
-              </div>
-            )}
-            <div className="text-xs text-gray-400 break-all max-h-16 overflow-y-auto mb-4">{url}</div>
-            <div className="flex gap-2">
-              <button onClick={onCopy} className="flex-1 bg-gradient-to-r from-red-500 to-blue-500 text-white px-4 py-2 rounded-lg font-semibold">
-                Link kopieren
-              </button>
-              <button onClick={onClose} className="px-4 py-2 rounded-lg font-semibold bg-gray-100 text-gray-700">
-                Schliessen
-              </button>
+        <Modal onClose={onClose}>
+          <h2 className="text-xl font-bold text-center mb-4 text-gray-800">{title}</h2>
+          {svg ? (
+            <div className="flex justify-center mb-4 [&>svg]:w-56 [&>svg]:h-56" dangerouslySetInnerHTML={{ __html: svg }} />
+          ) : (
+            <div className="text-center text-red-600 mb-4">
+              Dieses Memory ist zu gross für einen QR-Code — nutze den Direktlink.
             </div>
+          )}
+          <div className="text-xs text-gray-400 break-all max-h-16 overflow-y-auto mb-4">{url}</div>
+          <div className="flex gap-2">
+            <button onClick={onCopy} className={`flex-1 ${BTN_PRIMARY} px-4 py-2`}>
+              Link kopieren
+            </button>
+            <button onClick={onClose} className="px-4 py-2 rounded-lg font-semibold bg-gray-100 text-gray-700">
+              Schliessen
+            </button>
           </div>
-        </div>
+        </Modal>
       );
     };
 
@@ -310,7 +335,9 @@
         }
       };
 
-      // Dateien dürfen aufs ganze Fenster gezogen werden (wie bei MyTafelfussball)
+      // Dateien dürfen aufs ganze Fenster gezogen werden (wie bei MyTafelfussball).
+      // Nur einmal registrieren: onImport aktualisiert per Funktions-Update,
+      // die Closure kann also nicht veralten.
       useEffect(() => {
         const over = (e) => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); };
         const drop = (e) => {
@@ -324,7 +351,7 @@
           window.removeEventListener('dragover', over);
           window.removeEventListener('drop', drop);
         };
-      }, [own]);
+      }, []);
 
       const row = (memory, deletable) => (
         <div key={memory.id} className="flex items-center gap-2 mb-2">
@@ -335,22 +362,19 @@
             {memory.title}
             <span className="ml-2 text-sm font-normal text-gray-400">{memory.pairs.length} Paare</span>
           </button>
-          <button onClick={() => copyLink(memory)} title="Direktlink kopieren"
-            className="px-3 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-blue-50 transition-all text-gray-500"><LinkIcon /></button>
-          <button onClick={() => showQr(memory)} title="QR-Code anzeigen"
-            className="px-3 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-blue-50 transition-all text-gray-500"><QrIcon /></button>
+          <IconButton onClick={() => copyLink(memory)} title="Direktlink kopieren"><LinkIcon /></IconButton>
+          <IconButton onClick={() => showQr(memory)} title="QR-Code anzeigen"><QrIcon /></IconButton>
           {deletable && (
-            <button
+            <IconButton
               onClick={() => { if (confirm(`«${memory.title}» löschen?`)) onDelete(memory.id); }}
-              title="Löschen"
-              className="px-3 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all"
-            >🗑️</button>
+              title="Löschen" hover="hover:bg-red-50"
+            >🗑️</IconButton>
           )}
         </div>
       );
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-4 sm:p-8">
+        <div className={`${SCREEN} p-4 sm:p-8`}>
           <div className="max-w-2xl mx-auto">
             <h1 className="text-4xl font-bold text-center mb-2 text-gray-800">MyMemory</h1>
             <p className="text-center text-gray-500 mb-8">Wähle ein Memory und finde die Paare!</p>
@@ -384,7 +408,7 @@
               </ol>
               <button
                 onClick={() => copyText(KI_PROMPT, 'KI-Prompt kopiert!')}
-                className="w-full bg-gradient-to-r from-red-500 to-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-red-600 hover:to-blue-600 transition-all"
+                className={`w-full ${BTN_PRIMARY} px-4 py-2`}
               >
                 KI-Prompt kopieren
               </button>
@@ -480,13 +504,13 @@
         }
       }, [flippedCards]);
 
-      const handleCardClick = (cardId) => {
-        if (isChecking || flippedCards.includes(cardId) || matchedPairs.includes(cards.find(c => c.id === cardId).pairId)) {
+      const handleCardClick = (card) => {
+        if (isChecking || flippedCards.includes(card.id) || matchedPairs.includes(card.pairId)) {
           return;
         }
 
         if (flippedCards.length < 2) {
-          setFlippedCards([...flippedCards, cardId]);
+          setFlippedCards([...flippedCards, card.id]);
         }
       };
 
@@ -499,15 +523,10 @@
         setIsChecking(false);
       };
 
-      const isCardFlipped = (cardId) => {
-        const card = cards.find(c => c.id === cardId);
-        return flippedCards.includes(cardId) || matchedPairs.includes(card.pairId);
-      };
-
       const isGameComplete = matchedPairs.length === allPairs.length;
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-4 sm:p-8">
+        <div className={`${SCREEN} p-4 sm:p-8`}>
           <div className="max-w-5xl mx-auto">
             <div className="relative mb-8">
               <button
@@ -537,13 +556,13 @@
             {/* Spielfeld */}
             <div className="board mb-8 max-w-4xl mx-auto" style={{ '--cols': cols, '--cols-sm': colsSm }}>
               {cards.map((card) => {
-                const flipped = isCardFlipped(card.id);
                 const matched = matchedPairs.includes(card.pairId);
+                const flipped = flippedCards.includes(card.id) || matched;
 
                 return (
                   <div
                     key={card.id}
-                    onClick={() => handleCardClick(card.id)}
+                    onClick={() => handleCardClick(card)}
                     className={`aspect-[3/2] cursor-pointer transition-all duration-300 transform ${
                       !flipped ? 'hover:scale-105' : ''
                     }`}
@@ -570,18 +589,14 @@
 
             {/* Neues Spiel Button */}
             <div className="text-center">
-              <button
-                onClick={resetGame}
-                className="bg-gradient-to-r from-red-500 to-blue-500 text-white px-8 py-3 rounded-lg font-semibold hover:from-red-600 hover:to-blue-600 transition-all shadow-lg"
-              >
+              <button onClick={resetGame} className={`${BTN_PRIMARY} px-8 py-3`}>
                 Neues Spiel
               </button>
             </div>
 
             {/* Gewinner-Anzeige */}
             {isGameComplete && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-2xl p-8 max-w-md shadow-2xl">
+              <Modal>
                   <h2 className="text-3xl font-bold text-center mb-4">Spiel beendet!</h2>
                   <div className="text-center mb-6">
                     {scores.player1 > scores.player2 ? (
@@ -602,14 +617,10 @@
                       <div className="text-4xl font-bold text-blue-600">{scores.player2}</div>
                     </div>
                   </div>
-                  <button
-                    onClick={resetGame}
-                    className="w-full bg-gradient-to-r from-red-500 to-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:from-red-600 hover:to-blue-600 transition-all"
-                  >
+                  <button onClick={resetGame} className={`w-full ${BTN_PRIMARY} px-6 py-3`}>
                     Nochmal spielen
                   </button>
-                </div>
-              </div>
+              </Modal>
             )}
           </div>
         </div>
@@ -625,10 +636,10 @@
         setMemory(null);
         setError(null);
         if (route.type === 'demo') {
-          const demo = DEMOS.find((d) => d.id === route.id);
+          const demo = demoById(route.id);
           demo ? setMemory(demo) : setError('Dieses Memory gibt es nicht.');
         } else if (route.type === 'local') {
-          const m = loadOwn().find((m) => m.id === route.id);
+          const m = own.find((m) => m.id === route.id);
           m ? setMemory(m) : setError('Dieses Memory ist in diesem Browser nicht gespeichert.');
         } else {
           decodeMemory(route.data)
@@ -639,16 +650,16 @@
 
       if (error) {
         return (
-          <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8 flex flex-col items-center justify-center gap-4">
+          <div className={`${SCREEN} p-8 flex flex-col items-center justify-center gap-4`}>
             <div className="text-xl text-red-600 font-semibold text-center">{error}</div>
-            <button onClick={onBack} className="bg-gradient-to-r from-red-500 to-blue-500 text-white px-6 py-3 rounded-lg font-semibold shadow-lg">
+            <button onClick={onBack} className={`${BTN_PRIMARY} px-6 py-3`}>
               Zur Übersicht
             </button>
           </div>
         );
       }
       if (!memory) {
-        return <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8 text-center text-gray-500">Lade Memory…</div>;
+        return <div className={`${SCREEN} p-8 text-center text-gray-500`}>Lade Memory…</div>;
       }
       return <MemoryGame title={memory.title} allPairs={memory.pairs} onBack={onBack} />;
     };
@@ -664,24 +675,23 @@
         return () => window.removeEventListener('hashchange', onHash);
       }, []);
 
-      const openMemory = (memory) => {
-        const demo = DEMOS.find((d) => d.id === memory.id);
-        location.hash = demo ? 'demo=' + demo.id : 'local=' + memory.id;
-      };
+      const openMemory = (memory) => { location.hash = toHash(memory); };
 
-      const importMemory = (memory) => {
+      // Ändern + speichern in einem Schritt; Funktions-Update, damit Handler
+      // nie einen veralteten Stand einfangen (Drag&Drop-Listener läuft dauerhaft)
+      const updateOwn = (fn) => setOwn((prev) => {
+        const next = fn(prev);
+        saveOwn(next);
+        return next;
+      });
+
+      const importMemory = (memory) => updateOwn((prev) => {
         // Gleicher Titel = neue Version desselben Memorys → ersetzen statt doppeln
-        const rest = own.filter((m) => m.title !== memory.title);
-        const next = [...rest, memory].sort((a, b) => a.title.localeCompare(b.title, 'de'));
-        setOwn(next);
-        saveOwn(next);
-      };
+        const rest = prev.filter((m) => m.title !== memory.title);
+        return [...rest, memory].sort((a, b) => a.title.localeCompare(b.title, 'de'));
+      });
 
-      const deleteMemory = (id) => {
-        const next = own.filter((m) => m.id !== id);
-        setOwn(next);
-        saveOwn(next);
-      };
+      const deleteMemory = (id) => updateOwn((prev) => prev.filter((m) => m.id !== id));
 
       const back = () => {
         history.replaceState(null, '', location.pathname);
