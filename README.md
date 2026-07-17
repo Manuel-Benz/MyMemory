@@ -5,7 +5,7 @@ Komplett clientseitig (wie MyTafelfussball): kein Backend, keine Inhalte auf Git
 
 **Live:** https://manuel-benz.github.io/MyMemory/
 
-## Eigenes Memory erstellen
+## Memory erstellen
 
 1. Auf der Website den **KI-Prompt kopieren** (Button) und zusammen mit dem
    Material (z.B. PDF) in ein KI-Tool wie Claude oder ChatGPT einfügen.
