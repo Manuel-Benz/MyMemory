@@ -1,61 +1,55 @@
 # MyMemory
 
-Memory-Spiel für 2 Spieler mit austauschbaren Aufgabensets – für den Unterricht.
-Live: https://manuel-benz.github.io/MyMemory/
+Memory-Spiel für 2 Spieler mit eigenen Aufgabensets – für den Unterricht.
+Komplett clientseitig (wie MyTafelfussball): kein Backend, keine Inhalte auf GitHub.
 
-## Neues Memory anlegen
+**Live:** https://manuel-benz.github.io/MyMemory/
 
-Eine Markdown-Datei unter `memories/` ablegen (Unterordner = Themen in der Übersicht):
+## Eigenes Memory erstellen
 
-```markdown
-# Titel des Memorys
+1. Auf der Website den **KI-Prompt kopieren** (Button) und zusammen mit dem
+   Material (z.B. PDF) in ein KI-Tool wie Claude oder ChatGPT einfügen.
+2. Die erhaltene `.txt`-Datei auf die Website **ziehen** (oder die
+   Ablage-Fläche anklicken). Der Dateiname wird zum Titel.
+3. Das Memory erscheint unter „Meine Memories" – gespeichert im Browser
+   (`localStorage`), nirgendwo sonst.
 
-## Vorderseite der Karte
-Rückseite der Karte
+Format (identisch mit MyTafelfussball – dieselbe Datei funktioniert in beiden Apps):
 
-## $\sqrt{169}$
-$13$
+```
+F: Was ist die Hauptstadt der Schweiz?
+A: Bern
+---
+F: $\sqrt{169}$
+A: $13$
+---
 ```
 
-- Pro Paar: `## Vorderseite`, die nächste Zeile ist die Rückseite.
-- LaTeX in `$...$` wird mit KaTeX gerendert, Text und LaTeX sind mischbar.
-- Bei mehr als 12 Paaren wählt jede Runde zufällig 12 aus.
+- `F:` Vorderseite, `A:` Rückseite, `---` als Trenner (`Q:` statt `F:` geht auch).
+- LaTeX in `$...$` wird mit KaTeX gerendert, mischbar mit Text.
+- Kurz halten (max. ~40 Zeichen), damit es auf die Karte passt.
+- Jede Rückseite darf nur zu genau einer Vorderseite passen.
+- Das alte Markdown-Format (`# Titel`, `## Vorderseite` + Folgezeile) wird
+  beim Import weiterhin verstanden.
 
-Danach veröffentlichen (siehe Ablage) – der Pages-Workflow generiert den Index
-(`memories/index.json`) automatisch und deployt die Seite.
+Es werden immer **alle Paare** der Datei gespielt (Kacheln = 2 × Paare);
+das Raster passt sich der Anzahl an.
 
-## Ablage: Wo liegen die Memories?
+## Teilen mit der Klasse
 
-Wie bei MyKahoot liegen die Memories in einem lokalen Ordner deiner Wahl;
-das Repo ist nur die Veröffentlichungs-Kopie für die Website.
+Neben jedem Memory:
 
-```bash
-node publish.mjs --set-dir ~/Documents/Memories  # Ablage festlegen (einmalig);
-                                                 # ein leerer Ordner wird mit den
-                                                 # bisherigen Memories befüllt
-node publish.mjs --dir                           # zeigt die aktuelle Ablage
-node publish.mjs                                 # veröffentlichen: Ablage → Repo,
-                                                 # Commit, Push, Pages deployt
-node publish.mjs --set-dir ""                    # zurück auf Repo-Betrieb
-```
+- **🔗 Direktlink kopieren** – das komplette Memory steckt komprimiert im
+  Link selbst (im `#`-Fragment, verlässt den Browser nicht Richtung Server).
+  SuS klicken und spielen sofort, ohne Import.
+- **📱 QR-Code anzeigen** – derselbe Link als QR-Code, z.B. für den Beamer.
 
-Ohne Konfiguration gilt Repo-Betrieb: die Ablage ist `memories/` im Repo, und
-Veröffentlichen ist einfach `node publish.mjs` (oder git commit + push von Hand).
-Die Ordnerwahl liegt in `~/Library/Application Support/MyMemory/config.json`.
+Die Beispiele (Wurzeln, Hauptstädte Europas) sind fest in die App eingebaut.
 
-**Beachte:** Alles, was veröffentlicht wird, landet im öffentlichen GitHub-Repo
-und ist über die Website für alle sichtbar. Was nicht öffentlich sein soll,
-gehört nur in die lokale Ablage, nicht in ein Memory, das du veröffentlichst.
+## Technik
 
-## Direktlinks
-
-Auf der Übersicht kopiert der 🔗-Knopf den Direktlink eines Memorys, z.B.
-`https://manuel-benz.github.io/MyMemory/?memory=Mathematik%2Fwurzeln` –
-damit starten Schülerinnen und Schüler direkt im richtigen Spiel.
-
-## Lokal testen
-
-```bash
-node build-index.mjs        # Index generieren
-python3 -m http.server 8000 # dann http://localhost:8000 öffnen
-```
+Eine einzelne [index.html](index.html): React, Tailwind, KaTeX und
+qrcode-generator per CDN, kein Build-Schritt. GitHub Pages liefert direkt
+vom main-Branch aus. Lokal testen: Datei im Browser öffnen geht nicht
+(fetch/Clipboard), stattdessen `python3 -m http.server` und
+`http://localhost:8000` öffnen.

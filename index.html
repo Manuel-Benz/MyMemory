@@ -7,9 +7,15 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+  <style>
+    /* Spielfeld: Spaltenzahl passt sich der Kartenzahl an (immer ALLE Paare der Datei) */
+    .board { display: grid; gap: .75rem; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+    @media (max-width: 640px) { .board { grid-template-columns: repeat(var(--cols-sm), minmax(0, 1fr)); gap: .5rem; } }
+  </style>
 </head>
 <body>
   <div id="root"></div>
@@ -17,16 +23,81 @@
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
-    const MAX_PAIRS = 12; // grössere Sets werden pro Runde zufällig auf 12 Paare reduziert
+    // ---------- Eingebaute Beispiel-Memories ----------
+    const DEMOS = [
+      {
+        id: 'wurzeln',
+        title: 'Wurzeln',
+        pairs: [
+          { question: '$\\sqrt{169}$', answer: '$13$' },
+          { question: '$\\sqrt{a^2}$', answer: '$\\lvert a\\rvert$' },
+          { question: '$\\sqrt{9}+\\sqrt{16}$', answer: '$7$' },
+          { question: '$\\sqrt{a^2-2ab+b^2}$', answer: '$\\lvert a-b\\rvert$' },
+          { question: '$\\sqrt{13+12}$', answer: '$5$' },
+          { question: '$\\sqrt{2^{100}}$', answer: '$2^{50}$' },
+          { question: '$\\sqrt{\\sqrt{16}}$', answer: '$2$' },
+          { question: '$\\sqrt{-9}$', answer: '⚡' },
+          { question: '$\\sqrt{3-3}$', answer: '$0$' },
+          { question: '$\\sqrt{a^4}$', answer: '$a^2$' },
+          { question: '$\\sqrt{2^0}$', answer: '$1$' },
+          { question: '$\\sqrt{n^3}$', answer: '$\\lvert n\\rvert\\sqrt{n}$' },
+        ],
+      },
+      {
+        id: 'hauptstaedte',
+        title: 'Hauptstädte Europas',
+        pairs: [
+          { question: 'Schweiz', answer: 'Bern' },
+          { question: 'Frankreich', answer: 'Paris' },
+          { question: 'Italien', answer: 'Rom' },
+          { question: 'Spanien', answer: 'Madrid' },
+          { question: 'Österreich', answer: 'Wien' },
+          { question: 'Deutschland', answer: 'Berlin' },
+          { question: 'Portugal', answer: 'Lissabon' },
+          { question: 'Niederlande', answer: 'Amsterdam' },
+          { question: 'Polen', answer: 'Warschau' },
+          { question: 'Norwegen', answer: 'Oslo' },
+          { question: 'Griechenland', answer: 'Athen' },
+          { question: 'Tschechien', answer: 'Prag' },
+        ],
+      },
+    ];
 
-    // ---------- Memory-Dateien (Markdown) ----------
-    // Format wie bei MyKahoot: "# Titel", dann pro Paar "## Vorderseite" +
-    // nächste nicht-leere Zeile als Rückseite. LaTeX in $...$.
-    const parseMemory = (md) => {
+    const KI_PROMPT =
+      "Erstelle aus diesem Material Paare für ein Memory-Spiel. Formatiere sie exakt so: " +
+      "Für jedes Paar eine Zeile 'F: <Vorderseite>', eine Zeile 'A: <Rückseite>', dann eine Zeile mit nur '---' als Trennzeichen. " +
+      "Vorder- und Rückseite müssen kurz sein (maximal ca. 40 Zeichen), damit sie auf eine Memory-Karte passen. " +
+      "Mathematische Formeln als LaTeX in Dollarzeichen schreiben ($...$). " +
+      "8 bis 15 Paare, keine Duplikate; jede Rückseite darf nur zu genau einer Vorderseite passen, sonst funktioniert das Memory nicht. " +
+      "Keine zusätzlichen Erklärungen oder Nummerierungen. " +
+      "Erstelle daraus direkt eine .txt-Datei zum Herunterladen; der Dateiname (ohne .txt) wird als Titel des Memorys angezeigt, wähle also einen kurzen, passenden Titel. " +
+      "Falls du Dateien direkt speichern kannst, lege sie in meinen Downloads oder auf dem Desktop ab.";
+
+    // ---------- Dateien parsen ----------
+    // Tafelfussball-Format: F: (oder Q:) Vorderseite, A: Rückseite, --- als Trenner.
+    const parseFA = (text) => {
+      const pairs = [];
+      let question = null;
+      for (const raw of text.split(/\r?\n/)) {
+        const line = raw.trim();
+        const m = line.match(/^([FQA]):\s*(.*)$/i);
+        if (!m) continue;
+        if (m[1].toUpperCase() === 'A') {
+          if (question && m[2]) pairs.push({ question, answer: m[2] });
+          question = null;
+        } else {
+          question = m[2];
+        }
+      }
+      return pairs;
+    };
+
+    // Altes MyMemory-Format: "# Titel", pro Paar "## Vorderseite" + nächste Zeile.
+    const parseMd = (text) => {
       const pairs = [];
       let title = null;
       let question = null;
-      for (const raw of md.split(/\r?\n/)) {
+      for (const raw of text.split(/\r?\n/)) {
         const line = raw.trim();
         if (!line) continue;
         if (line.startsWith('## ')) { question = line.slice(3).trim(); continue; }
@@ -36,16 +107,85 @@
       return { title, pairs };
     };
 
-    const memoryUrl = (id) =>
-      'memories/' + id.split('/').map(encodeURIComponent).join('/') + '.md';
+    const parseFile = (text, filename) => {
+      const fromName = filename.replace(/\.(txt|md)$/i, '').replace(/_/g, ' ').trim();
+      if (/^##\s/m.test(text)) {
+        const { title, pairs } = parseMd(text);
+        return { title: title || fromName, pairs };
+      }
+      return { title: fromName, pairs: parseFA(text) };
+    };
 
-    const directLink = (id) =>
-      location.origin + location.pathname + '?memory=' + encodeURIComponent(id);
+    // ---------- Eigene Memories im Browser (localStorage) ----------
+    const STORAGE_KEY = 'mymemory';
 
-    const idFromUrl = () =>
-      new URLSearchParams(location.search).get('memory');
+    const loadOwn = () => {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY))?.memories || []; }
+      catch { return []; }
+    };
+    const saveOwn = (memories) => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ memories })); } catch {}
+    };
+    const newId = () =>
+      (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 
-    // Fisher-Yates Shuffle Algorithmus
+    // ---------- Direktlinks: Memory komprimiert im URL-Fragment ----------
+    // Die Daten stehen nach dem # — sie verlassen den Browser nicht einmal
+    // Richtung Server. Format: #m=1.<deflate+base64url> bzw. #m=0.<base64url>.
+    const b64urlEncode = (bytes) => {
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      }
+      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    };
+    const b64urlDecode = (str) =>
+      Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+
+    const encodeMemory = async (memory) => {
+      const json = new TextEncoder().encode(
+        JSON.stringify([memory.title, memory.pairs.map((p) => [p.question, p.answer])])
+      );
+      if (window.CompressionStream) {
+        const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+        return '1.' + b64urlEncode(new Uint8Array(await new Response(stream).arrayBuffer()));
+      }
+      return '0.' + b64urlEncode(json);
+    };
+
+    const decodeMemory = async (data) => {
+      const version = data.slice(0, 1);
+      const bytes = b64urlDecode(data.slice(2));
+      const json = version === '1'
+        ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()
+        : new TextDecoder().decode(bytes);
+      const [title, rawPairs] = JSON.parse(json);
+      return { title, pairs: rawPairs.map(([question, answer]) => ({ question, answer })) };
+    };
+
+    const directLink = async (memory) => {
+      const demo = DEMOS.find((d) => d.id === memory.id);
+      const base = location.origin + location.pathname;
+      return demo ? `${base}#demo=${demo.id}` : `${base}#m=${await encodeMemory(memory)}`;
+    };
+
+    // ---------- Routing über das URL-Fragment ----------
+    const getRoute = () => {
+      const hash = location.hash.slice(1);
+      if (hash.startsWith('m=')) return { type: 'data', data: hash.slice(2) };
+      if (hash.startsWith('demo=')) return { type: 'demo', id: hash.slice(5) };
+      if (hash.startsWith('local=')) return { type: 'local', id: hash.slice(6) };
+      // Alte Links (?memory=Mathematik/wurzeln) auf die Demos abbilden
+      const legacy = new URLSearchParams(location.search).get('memory');
+      if (legacy) {
+        const slug = legacy.split('/').pop();
+        const demo = DEMOS.find((d) => slug.includes(d.id));
+        history.replaceState(null, '', location.pathname + (demo ? '#demo=' + demo.id : ''));
+        if (demo) return { type: 'demo', id: demo.id };
+      }
+      return null;
+    };
+
     const shuffleArray = (array) => {
       const newArray = [...array];
       for (let i = newArray.length - 1; i > 0; i--) {
@@ -82,73 +222,171 @@
       return <span ref={ref} className="break-words [overflow-wrap:anywhere]"></span>;
     };
 
-    // ---------- Auswahlseite ----------
-    const Selection = ({ index, error, onOpen }) => {
-      const [toast, setToast] = useState(null);
+    // ---------- QR-Code-Dialog ----------
+    const QrModal = ({ title, url, onClose, onCopy }) => {
+      let svg = null;
+      try {
+        const qr = window.qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        svg = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true });
+      } catch (e) {
+        svg = null; // zu viele Daten für einen QR-Code
+      }
 
-      const copyLink = (id) => {
-        navigator.clipboard.writeText(directLink(id)).then(() => {
-          setToast('Direktlink kopiert!');
-          setTimeout(() => setToast(null), 2000);
-        });
-      };
-
-      // Ordnerbaum aus den Pfaden ableiten (wie bei MyKahoot: erst Unterordner, dann Einträge)
-      const dirsUnder = (parent) => {
-        const set = new Set();
-        for (const m of index.memories) {
-          if (!m.dir) continue;
-          const parts = m.dir.split('/');
-          for (let i = 1; i <= parts.length; i++) {
-            const d = parts.slice(0, i).join('/');
-            const pd = parts.slice(0, i - 1).join('/');
-            if (pd === parent) set.add(d);
-          }
-        }
-        return [...set].sort((a, b) => a.localeCompare(b, 'de'));
-      };
-
-      const renderDir = (dir) => (
-        <React.Fragment>
-          {dirsUnder(dir).map((sub) => (
-            <details key={sub} open className="mb-2">
-              <summary className="cursor-pointer select-none px-4 py-2 bg-white rounded-lg shadow font-semibold text-gray-700">
-                📁 {sub.split('/').pop()}
-              </summary>
-              <div className="ml-4 mt-2">{renderDir(sub)}</div>
-            </details>
-          ))}
-          {index.memories.filter((m) => m.dir === dir).map((m) => (
-            <div key={m.id} className="flex items-center gap-2 mb-2">
-              <button
-                onClick={() => onOpen(m.id)}
-                className="flex-1 text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all font-semibold text-gray-800"
-              >
-                🃏 {m.title}
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-center mb-4 text-gray-800">{title}</h2>
+            {svg ? (
+              <div className="flex justify-center mb-4 [&>svg]:w-56 [&>svg]:h-56" dangerouslySetInnerHTML={{ __html: svg }} />
+            ) : (
+              <div className="text-center text-red-600 mb-4">
+                Dieses Memory ist zu gross für einen QR-Code — nutze den Direktlink.
+              </div>
+            )}
+            <div className="text-xs text-gray-400 break-all max-h-16 overflow-y-auto mb-4">{url}</div>
+            <div className="flex gap-2">
+              <button onClick={onCopy} className="flex-1 bg-gradient-to-r from-red-500 to-blue-500 text-white px-4 py-2 rounded-lg font-semibold">
+                Link kopieren
               </button>
-              <button
-                onClick={() => copyLink(m.id)}
-                title="Direktlink kopieren"
-                className="px-3 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-blue-50 transition-all"
-              >
-                🔗
+              <button onClick={onClose} className="px-4 py-2 rounded-lg font-semibold bg-gray-100 text-gray-700">
+                Schliessen
               </button>
             </div>
-          ))}
-        </React.Fragment>
+          </div>
+        </div>
+      );
+    };
+
+    // ---------- Auswahlseite ----------
+    const Selection = ({ own, onOpen, onImport, onDelete }) => {
+      const [toast, setToast] = useState(null);
+      const [qr, setQr] = useState(null); // { title, url }
+      const fileInput = useRef(null);
+
+      const showToast = (msg) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 2500);
+      };
+
+      const copyText = (text, msg) =>
+        navigator.clipboard.writeText(text).then(() => showToast(msg));
+
+      const copyLink = async (memory) => copyText(await directLink(memory), 'Direktlink kopiert!');
+      const showQr = async (memory) => setQr({ title: memory.title, url: await directLink(memory) });
+
+      const importFiles = (fileList) => {
+        for (const file of fileList) {
+          file.text().then((text) => {
+            const { title, pairs } = parseFile(text, file.name);
+            if (!pairs.length) {
+              showToast(`«${file.name}»: keine Paare gefunden (Format F:/A:/---)`);
+              return;
+            }
+            onImport({ id: newId(), title, pairs });
+            showToast(`«${title}» importiert (${pairs.length} Paare)`);
+          });
+        }
+      };
+
+      // Dateien dürfen aufs ganze Fenster gezogen werden (wie bei MyTafelfussball)
+      useEffect(() => {
+        const over = (e) => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); };
+        const drop = (e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          importFiles(e.dataTransfer.files);
+        };
+        window.addEventListener('dragover', over);
+        window.addEventListener('drop', drop);
+        return () => {
+          window.removeEventListener('dragover', over);
+          window.removeEventListener('drop', drop);
+        };
+      }, [own]);
+
+      const row = (memory, deletable) => (
+        <div key={memory.id} className="flex items-center gap-2 mb-2">
+          <button
+            onClick={() => onOpen(memory)}
+            className="flex-1 min-w-0 text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all font-semibold text-gray-800"
+          >
+            🃏 {memory.title}
+            <span className="ml-2 text-sm font-normal text-gray-400">{memory.pairs.length} Paare</span>
+          </button>
+          <button onClick={() => copyLink(memory)} title="Direktlink kopieren"
+            className="px-3 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-blue-50 transition-all">🔗</button>
+          <button onClick={() => showQr(memory)} title="QR-Code anzeigen"
+            className="px-3 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-blue-50 transition-all">📱</button>
+          {deletable && (
+            <button
+              onClick={() => { if (confirm(`«${memory.title}» löschen?`)) onDelete(memory.id); }}
+              title="Löschen"
+              className="px-3 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all"
+            >🗑️</button>
+          )}
+        </div>
       );
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8">
+        <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-4 sm:p-8">
           <div className="max-w-2xl mx-auto">
             <h1 className="text-4xl font-bold text-center mb-2 text-gray-800">MyMemory</h1>
             <p className="text-center text-gray-500 mb-8">Wähle ein Memory und finde die Paare!</p>
-            {error && <div className="text-center text-red-600 font-semibold">{error}</div>}
-            {!index && !error && <div className="text-center text-gray-500">Lade Memories…</div>}
-            {index && renderDir('')}
+
+            {own.length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-lg font-semibold text-gray-600 mb-3">Meine Memories</h2>
+                {own.map((m) => row(m, true))}
+                <p className="text-xs text-gray-400 mt-1">
+                  Gespeichert in diesem Browser. Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze Memory.
+                </p>
+              </div>
+            )}
+
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-600 mb-3">Beispiele</h2>
+              {DEMOS.map((m) => row(m, false))}
+            </div>
+
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-lg font-semibold text-gray-700 mb-3">Eigenes Memory erstellen</h2>
+              <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mb-4">
+                <li>Kopiere den KI-Prompt (Button unten).</li>
+                <li>Füge ihn zusammen mit deinem Material (z.B. PDF) in ein KI-Tool wie <b>Claude</b> oder <b>ChatGPT</b> ein.</li>
+                <li>Die KI erstellt eine .txt-Datei mit den Paaren im Format <code className="bg-gray-100 px-1 rounded">F:</code> / <code className="bg-gray-100 px-1 rounded">A:</code> / <code className="bg-gray-100 px-1 rounded">---</code>.</li>
+                <li>Ziehe die Datei hierher — sie wird in diesem Browser gespeichert.</li>
+              </ol>
+              <button
+                onClick={() => copyText(KI_PROMPT, 'KI-Prompt kopiert!')}
+                className="w-full mb-3 bg-gradient-to-r from-red-500 to-blue-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-red-600 hover:to-blue-600 transition-all"
+              >
+                KI-Prompt kopieren
+              </button>
+              <div
+                onClick={() => fileInput.current.click()}
+                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500 cursor-pointer hover:border-blue-400 hover:text-gray-700 hover:bg-blue-50 transition-all"
+              >
+                📥 <b>Datei hierher ziehen</b><br />
+                <span className="text-sm text-gray-400">oder klicken zum Auswählen (.txt im F:/A:/---‑Format)</span>
+              </div>
+              <input
+                ref={fileInput} type="file" accept=".txt,.md" multiple className="hidden"
+                onChange={(e) => { importFiles(e.target.files); e.target.value = ''; }}
+              />
+            </div>
           </div>
+
+          {qr && (
+            <QrModal
+              title={qr.title} url={qr.url}
+              onClose={() => setQr(null)}
+              onCopy={() => copyText(qr.url, 'Direktlink kopiert!')}
+            />
+          )}
           {toast && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg">
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg z-50">
               {toast}
             </div>
           )}
@@ -156,50 +394,14 @@
       );
     };
 
-    // ---------- Memory laden und Spiel starten ----------
-    const Game = ({ id, onBack }) => {
-      const [data, setData] = useState(null);
-      const [error, setError] = useState(null);
-
-      useEffect(() => {
-        setData(null);
-        setError(null);
-        fetch(memoryUrl(id))
-          .then((r) => { if (!r.ok) throw new Error(); return r.text(); })
-          .then((md) => {
-            const parsed = parseMemory(md);
-            if (!parsed.pairs.length) throw new Error();
-            setData(parsed);
-          })
-          .catch(() => setError(`Memory «${id}» wurde nicht gefunden.`));
-      }, [id]);
-
-      if (error) {
-        return (
-          <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8 flex flex-col items-center justify-center gap-4">
-            <div className="text-xl text-red-600 font-semibold">{error}</div>
-            <button onClick={onBack} className="bg-gradient-to-r from-red-500 to-blue-500 text-white px-6 py-3 rounded-lg font-semibold shadow-lg">
-              Zur Übersicht
-            </button>
-          </div>
-        );
-      }
-      if (!data) {
-        return <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8 text-center text-gray-500">Lade Memory…</div>;
-      }
-      return <MemoryGame title={data.title || id} allPairs={data.pairs} onBack={onBack} />;
-    };
-
     // ---------- Das Memory-Spiel ----------
+    // Es werden immer ALLE Paare der Datei gespielt: Kachelzahl = 2 × Paare.
     const MemoryGame = ({ title, allPairs, onBack }) => {
-      // Karten erstellen und mischen; grosse Sets pro Runde zufällig reduzieren
       const createCards = () => {
-        const pairs = shuffleArray(allPairs).slice(0, MAX_PAIRS);
         const cards = [];
-        pairs.forEach((pair, i) => {
-          const pairId = `${pair.question}::${pair.answer}`;
-          cards.push({ id: `q-${i}`, content: pair.question, pairId, type: 'question' });
-          cards.push({ id: `a-${i}`, content: pair.answer, pairId, type: 'answer' });
+        allPairs.forEach((pair, i) => {
+          cards.push({ id: `q-${i}`, content: pair.question, pairId: i, type: 'question' });
+          cards.push({ id: `a-${i}`, content: pair.answer, pairId: i, type: 'answer' });
         });
         return shuffleArray(cards);
       };
@@ -211,7 +413,14 @@
       const [scores, setScores] = useState({ player1: 0, player2: 0 });
       const [isChecking, setIsChecking] = useState(false);
 
-      const pairCount = cards.length / 2;
+      // Spaltenzahl so wählen, dass das Raster möglichst aufgeht
+      const colsFor = (n, candidates, fallback) => {
+        for (const c of candidates) if (n % c === 0) return c;
+        return fallback;
+      };
+      const cardCount = cards.length;
+      const cols = cardCount <= 16 ? colsFor(cardCount, [4, 3, 5, 6], 4) : colsFor(cardCount, [6, 5, 4], 6);
+      const colsSm = colsFor(cardCount, [3, 4], 4);
 
       // Prüfen ob zwei aufgedeckte Karten ein Paar bilden
       useEffect(() => {
@@ -267,7 +476,7 @@
         return flippedCards.includes(cardId) || matchedPairs.includes(card.pairId);
       };
 
-      const isGameComplete = matchedPairs.length === pairCount;
+      const isGameComplete = matchedPairs.length === allPairs.length;
 
       return (
         <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-4 sm:p-8">
@@ -298,7 +507,7 @@
             </div>
 
             {/* Spielfeld */}
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 max-w-4xl mx-auto">
+            <div className="board mb-8 max-w-4xl mx-auto" style={{ '--cols': cols, '--cols-sm': colsSm }}>
               {cards.map((card) => {
                 const flipped = isCardFlipped(card.id);
                 const matched = matchedPairs.includes(card.pairId);
@@ -330,12 +539,6 @@
                 );
               })}
             </div>
-
-            {allPairs.length > MAX_PAIRS && (
-              <div className="text-center text-sm text-gray-500 mb-4">
-                {pairCount} von {allPairs.length} Paaren – jede Runde eine neue Auswahl
-              </div>
-            )}
 
             {/* Neues Spiel Button */}
             <div className="text-center">
@@ -385,37 +588,81 @@
       );
     };
 
-    // ---------- App: Auswahl vs. Spiel, Direktlinks via ?memory= ----------
+    // ---------- Spiel aus der Route laden ----------
+    const Game = ({ route, own, onBack }) => {
+      const [memory, setMemory] = useState(null);
+      const [error, setError] = useState(null);
+
+      useEffect(() => {
+        setMemory(null);
+        setError(null);
+        if (route.type === 'demo') {
+          const demo = DEMOS.find((d) => d.id === route.id);
+          demo ? setMemory(demo) : setError('Dieses Memory gibt es nicht.');
+        } else if (route.type === 'local') {
+          const m = loadOwn().find((m) => m.id === route.id);
+          m ? setMemory(m) : setError('Dieses Memory ist in diesem Browser nicht gespeichert.');
+        } else {
+          decodeMemory(route.data)
+            .then((m) => (m.pairs.length ? setMemory(m) : setError('Der Link enthält keine Paare.')))
+            .catch(() => setError('Der Link konnte nicht gelesen werden.'));
+        }
+      }, [route.type, route.id, route.data]);
+
+      if (error) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8 flex flex-col items-center justify-center gap-4">
+            <div className="text-xl text-red-600 font-semibold text-center">{error}</div>
+            <button onClick={onBack} className="bg-gradient-to-r from-red-500 to-blue-500 text-white px-6 py-3 rounded-lg font-semibold shadow-lg">
+              Zur Übersicht
+            </button>
+          </div>
+        );
+      }
+      if (!memory) {
+        return <div className="min-h-screen bg-gradient-to-br from-red-50 to-blue-50 p-8 text-center text-gray-500">Lade Memory…</div>;
+      }
+      return <MemoryGame title={memory.title} allPairs={memory.pairs} onBack={onBack} />;
+    };
+
+    // ---------- App ----------
     const App = () => {
-      const [index, setIndex] = useState(null);
-      const [indexError, setIndexError] = useState(null);
-      const [current, setCurrent] = useState(idFromUrl());
+      const [route, setRoute] = useState(getRoute);
+      const [own, setOwn] = useState(loadOwn);
 
       useEffect(() => {
-        fetch('memories/index.json')
-          .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-          .then(setIndex)
-          .catch(() => setIndexError('Die Memory-Liste konnte nicht geladen werden.'));
+        const onHash = () => setRoute(getRoute());
+        window.addEventListener('hashchange', onHash);
+        return () => window.removeEventListener('hashchange', onHash);
       }, []);
 
-      useEffect(() => {
-        const onPop = () => setCurrent(idFromUrl());
-        window.addEventListener('popstate', onPop);
-        return () => window.removeEventListener('popstate', onPop);
-      }, []);
-
-      const open = (id) => {
-        history.pushState({}, '', '?memory=' + encodeURIComponent(id));
-        setCurrent(id);
+      const openMemory = (memory) => {
+        const demo = DEMOS.find((d) => d.id === memory.id);
+        location.hash = demo ? 'demo=' + demo.id : 'local=' + memory.id;
       };
+
+      const importMemory = (memory) => {
+        // Gleicher Titel = neue Version desselben Memorys → ersetzen statt doppeln
+        const rest = own.filter((m) => m.title !== memory.title);
+        const next = [...rest, memory].sort((a, b) => a.title.localeCompare(b.title, 'de'));
+        setOwn(next);
+        saveOwn(next);
+      };
+
+      const deleteMemory = (id) => {
+        const next = own.filter((m) => m.id !== id);
+        setOwn(next);
+        saveOwn(next);
+      };
+
       const back = () => {
-        history.pushState({}, '', location.pathname);
-        setCurrent(null);
+        history.replaceState(null, '', location.pathname);
+        setRoute(null);
       };
 
-      return current
-        ? <Game key={current} id={current} onBack={back} />
-        : <Selection index={index} error={indexError} onOpen={open} />;
+      return route
+        ? <Game key={JSON.stringify(route)} route={route} own={own} onBack={back} />
+        : <Selection own={own} onOpen={openMemory} onImport={importMemory} onDelete={deleteMemory} />;
     };
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
