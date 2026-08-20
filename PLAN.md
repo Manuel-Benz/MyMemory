@@ -14,6 +14,11 @@ Dazugekommen:
 - **Ordner** wie in MyKahoot: beliebig tief, anlegen/umbenennen/löschen (nur
   leer), Umhängen von Memories und Ordnern per Drag & Drop, Dateien direkt auf
   einen Ordner ziehbar. Gespeichert wird neu `{ memories, folders }`.
+- **Längere Einträge**: die Kartenschrift verkleinert sich stufenweise, bis der
+  Text in die Kachel passt (24–14 px, auf dem Handy 18–10 px).
+- **KI-Prompt im MyKahoot-Stil**: Ausfüll-Block zuoberst (Thema/Material,
+  Klasse, Anzahl Paare), darunter die Vorgaben; die KI liefert `.txt`-Datei
+  *und* denselben Text zum Kopieren.
 
 ## Backlog
 

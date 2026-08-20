@@ -64,15 +64,63 @@
       },
     ];
 
-    const KI_PROMPT =
-      "Erstelle aus diesem Material Paare für ein Memory-Spiel. Formatiere sie exakt so: " +
-      "Für jedes Paar eine Zeile 'F: <Vorderseite>', eine Zeile 'A: <Rückseite>', dann eine Zeile mit nur '---' als Trennzeichen. " +
-      "Vorder- und Rückseite müssen kurz sein (maximal ca. 40 Zeichen), damit sie auf eine Memory-Karte passen. " +
-      "Mathematische Formeln als LaTeX in Dollarzeichen schreiben ($...$). " +
-      "8 bis 15 Paare, keine Duplikate; jede Rückseite darf nur zu genau einer Vorderseite passen, sonst funktioniert das Memory nicht. " +
-      "Keine zusätzlichen Erklärungen oder Nummerierungen. " +
-      "Erstelle daraus direkt eine .txt-Datei zum Herunterladen; der Dateiname (ohne .txt) wird als Titel des Memorys angezeigt, wähle also einen kurzen, passenden Titel. " +
-      "Falls du Dateien direkt speichern kannst, lege sie in meinen Downloads oder auf dem Desktop ab.";
+    // Aufgebaut wie der Prompt in MyKahoot: zuoberst ein Block zum Ausfüllen,
+    // darunter unverändert die Vorgaben, an denen es sonst scheitert.
+    const KI_PROMPT = [
+      "Du schreibst Lernkarten für den Unterricht. Erstelle ein Memory-Spiel (Paare) nach meinen Angaben.",
+      "",
+      "===== NUR DAS HIER AUSFÜLLEN (Rest unverändert lassen) =====",
+      "Thema oder Material: [Thema in einem Satz — oder: siehe angehängte Datei/Text]",
+      "Für wen: [z. B. 8. Klasse]",
+      "Anzahl Paare: [z. B. 12]",
+      "Schwierigkeit: [leicht / mittel / schwer / gemischt]",
+      "Sprache: [Deutsch]",
+      "Besonderes: [optional, z. B. nur Kapitel 3]",
+      "============================================================",
+      "",
+      "Schicke ich Material mit, nimm die Paare NUR daraus. Sonst nimmst du dein",
+      "eigenes Wissen zum angegebenen Thema.",
+      "",
+      "SO GIBST DU ES AUS — daran scheitert es sonst:",
+      "- Gib beides aus, in dieser Reihenfolge:",
+      "  1. eine Datei zum Herunterladen, Endung .txt (kein .docx, kein PDF). Der",
+      "     Dateiname ohne .txt wird zum Titel des Memorys — also kurz und passend wählen.",
+      "  2. denselben Inhalt nochmals in EINEM Code-Block (```), zum Kopieren.",
+      "- Kannst du keine Dateien erzeugen, reicht der Code-Block allein.",
+      "- Kein Wort davor oder danach: keine Einleitung, keine Erklärung, keine Rückfrage.",
+      "",
+      "FORMAT (genau so):",
+      "",
+      "F: Hauptstadt der Schweiz",
+      "A: Bern",
+      "---",
+      "F: $\\sqrt{169}$",
+      "A: $13$",
+      "---",
+      "",
+      "REGELN:",
+      "- «F: » ist die Vorderseite, «A: » die Rückseite, «---» trennt die Paare.",
+      "- Nach jedem Paar eine Zeile «---», auch nach dem letzten.",
+      "- Jede Rückseite darf nur zu GENAU EINER Vorderseite passen — sonst ist im Spiel",
+      "  nicht entscheidbar, welche Karten zusammengehören. Keine Rückseite zweimal.",
+      "- Beide Seiten müssen für sich verständlich sein: die Karten liegen einzeln da.",
+      "- Kurz halten: Richtwert 40 Zeichen, höchstens ca. 80. Längeres wird auf der",
+      "  Karte automatisch kleiner gesetzt und dann eng.",
+      "- Formeln als LaTeX zwischen Dollarzeichen: $x^2 + 1$ (auch auf der Rückseite).",
+      "- ALLE Zahlen gehören in den Mathe-Modus, auch einzelne: $7$, $2026$ — nie nackt als 7.",
+      "- Tausendertrenner IMMER als schmales Leerzeichen \\, innerhalb der Dollarzeichen:",
+      "  $468\\,000$. Kein Komma und kein Punkt als Trenner — das Komma ist bei uns das Dezimalzeichen.",
+      "- Keine Nummerierung, keine Fettschrift, keine Bilder, keine Erklärungen.",
+      "",
+      "ZUM SCHLUSS: geh die Paare nochmals durch und bessere STILL aus, was hier nicht",
+      "stimmt — am Ende nur das fertige Memory ausgeben, keine Liste der Änderungen.",
+      "- Passt jede Rückseite wirklich nur zu ihrer eigenen Vorderseite?",
+      "- Kommt eine Rückseite doppelt oder fast gleich vor?",
+      "- Ist beides kurz genug für eine Karte?",
+      "- Passt das Niveau durchgehend zur angegebenen Klasse?",
+      "- Steht jede Zahl im Mathe-Modus, jeder Tausendertrenner als \\,?",
+      "- Stimmt das Format überall: «F: », «A: », «---»?",
+    ].join("\n");
 
     // ---------- Dateien parsen ----------
     // Tafelfussball-Format: F: (oder Q:) Vorderseite, A: Rückseite, --- als Trenner.
@@ -276,6 +324,48 @@
       }, [content]);
 
       return <span ref={ref} className="break-words [overflow-wrap:anywhere]"></span>;
+    };
+
+    // ---------- Text, der sich auf die Kachel einpasst ----------
+    // Lange Einträge sollen möglich sein, ohne aus der Karte zu laufen: die
+    // Schrift geht stufenweise runter, bis der Text in die Kachel passt. Die
+    // oberste Stufe gilt für kurze Einträge (die dürfen gross sein), die unterste
+    // ist die Grenze — darunter wird es auch am Beamer nicht mehr lesbar.
+    // Handy-Kacheln sind viel kleiner, deshalb dort eine eigene Leiter.
+    const FONT_STEPS = [24, 22, 20, 18, 16, 14];
+    const FONT_STEPS_SM = [18, 16, 14, 12, 11, 10];
+
+    const FitText = ({ content }) => {
+      const inner = useRef(null);
+
+      // Passives useEffect (kein Layout-Effekt): so ist der KaTeX-Inhalt des
+      // MathRenderer-Kindes schon da, wenn hier gemessen wird.
+      useEffect(() => {
+        const fit = () => {
+          const el = inner.current;
+          const box = el && el.parentElement;
+          if (!box) return;
+          const cs = getComputedStyle(box);
+          const availW = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          const availH = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+          const steps = window.matchMedia('(max-width: 640px)').matches ? FONT_STEPS_SM : FONT_STEPS;
+          for (const size of steps) {
+            el.style.fontSize = `${size}px`;
+            if (el.scrollWidth <= availW && el.scrollHeight <= availH) break;
+          }
+        };
+        fit();
+        // Die KaTeX-Schriften kommen nachgeladen und ändern die Masse
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+        window.addEventListener('resize', fit);
+        return () => window.removeEventListener('resize', fit);
+      }, [content]);
+
+      return (
+        <div ref={inner} className="max-w-full leading-tight">
+          <MathRenderer content={content} />
+        </div>
+      );
     };
 
     // ---------- Gemeinsame Bausteine ----------
@@ -641,10 +731,10 @@
               {createOpen && (
                 <div className="px-6 pb-6">
                   <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mb-4">
-                    <li>Kopiere den KI-Prompt (Button unten).</li>
-                    <li>Füge ihn zusammen mit deinem Material (z.B. PDF) in ein KI-Tool wie <b>Claude</b> oder <b>ChatGPT</b> ein.</li>
-                    <li>Die KI erstellt eine .txt-Datei mit den Paaren im Format <code className="bg-gray-100 px-1 rounded">F:</code> / <code className="bg-gray-100 px-1 rounded">A:</code> / <code className="bg-gray-100 px-1 rounded">---</code>.</li>
-                    <li>Ziehe die Datei unten in die Ablage-Fläche — oder kopiere den Text direkt ins Feld darunter.</li>
+                    <li>Kopiere den KI-Prompt (Button unten) in ein KI-Tool wie <b>Claude</b> oder <b>ChatGPT</b>.</li>
+                    <li>Fülle dort <b>den Block zuoberst</b> aus: Thema <i>oder</i> Material (PDF/Text anhängen), Klasse, Anzahl Paare … Alles darunter unverändert lassen — das ist die Formatvorgabe.</li>
+                    <li>Du erhältst eine .txt-Datei <i>und</i> denselben Text zum Kopieren (Format <code className="bg-gray-100 px-1 rounded">F:</code> / <code className="bg-gray-100 px-1 rounded">A:</code> / <code className="bg-gray-100 px-1 rounded">---</code>).</li>
+                    <li>Datei unten in die Ablage-Fläche ziehen — oder den Text ins Feld darunter einfügen.</li>
                   </ol>
                   <button
                     onClick={() => copyText(KI_PROMPT, 'KI-Prompt kopiert!')}
@@ -881,7 +971,8 @@
               </button>
             </div>
             <p className="text-xs text-gray-400 mt-3">
-              Kurz halten (max. ~40 Zeichen), damit es auf die Karte passt. LaTeX in <code className="bg-gray-100 px-1 rounded">$…$</code> wird gerendert.
+              Längere Einträge werden auf der Karte automatisch kleiner gesetzt (24 bis 14 px) — sehr lange
+              bleiben trotzdem eng. LaTeX in <code className="bg-gray-100 px-1 rounded">$…$</code> wird gerendert.
             </p>
           </div>
           {dialog && <AskModal dialog={dialog} onClose={() => setDialog(null)} />}
@@ -1010,7 +1101,7 @@
                       !flipped ? 'hover:scale-105' : ''
                     }`}
                   >
-                    <div className={`w-full h-full rounded-lg shadow-md flex items-center justify-center p-2 sm:p-3 text-sm sm:text-lg font-bold text-center transition-all duration-300 ${
+                    <div className={`w-full h-full rounded-lg shadow-md flex items-center justify-center overflow-hidden p-2 sm:p-3 text-sm sm:text-lg font-bold text-center transition-all duration-300 ${
                       flipped
                         ? matched
                           ? 'bg-green-100 text-green-800'
@@ -1020,7 +1111,7 @@
                         : 'bg-gradient-to-br from-red-400 to-blue-500 text-white hover:from-red-500 hover:to-blue-600'
                     }`}>
                       {flipped ? (
-                        <MathRenderer content={card.content} />
+                        <FitText content={card.content} />
                       ) : (
                         '?'
                       )}

@@ -9,11 +9,13 @@ Komplett clientseitig (wie MyTafelfussball): kein Backend, keine Inhalte auf Git
 
 Alles steckt im aufklappbaren Kästchen **„Memory erstellen"**:
 
-1. Den **KI-Prompt kopieren** (Button) und zusammen mit dem Material (z.B. PDF)
-   in ein KI-Tool wie Claude oder ChatGPT einfügen.
-2. Die erhaltene `.txt`-Datei auf die Website **ziehen** (oder die
-   Ablage-Fläche anklicken). Der Dateiname wird zum Titel. Alternativ den Text
-   direkt ins Feld **„oder Text einfügen"** kopieren und einen Titel eintippen.
+1. Den **KI-Prompt kopieren** (Button) und in ein KI-Tool wie Claude oder
+   ChatGPT einfügen. Dort **den Block zuoberst ausfüllen** (Thema oder Material,
+   Klasse, Anzahl Paare); Material wie ein PDF einfach anhängen.
+2. Die KI liefert eine `.txt`-Datei **und** denselben Text zum Kopieren. Datei
+   auf die Website **ziehen** (oder die Ablage-Fläche anklicken) — der Dateiname
+   wird zum Titel. Oder den Text ins Feld **„oder Text einfügen"** kopieren und
+   einen Titel eintippen.
 3. Das Memory erscheint unter „Meine Memories" – gespeichert im Browser
    (`localStorage`), nirgendwo sonst.
 
@@ -32,7 +34,9 @@ A: $13$
 
 - `F:` Vorderseite, `A:` Rückseite, `---` als Trenner (`Q:` statt `F:` geht auch).
 - LaTeX in `$...$` wird mit KaTeX gerendert, mischbar mit Text.
-- Kurz halten (max. ~40 Zeichen), damit es auf die Karte passt.
+- Kurz halten (Richtwert ~40 Zeichen): Längeres wird auf der Karte automatisch
+  kleiner gesetzt (24 → 22 → 20 → 18 → 16 → 14 px, auf dem Handy 18 → 10 px),
+  sehr Langes bleibt trotzdem eng.
 - Jede Rückseite darf nur zu genau einer Vorderseite passen.
 - Das alte Markdown-Format (`# Titel`, `## Vorderseite` + Folgezeile) wird
   beim Import weiterhin verstanden.
