@@ -22,7 +22,257 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // ---------- Browser-Speicher ----------
+    // Der Browser darf jederzeit nein sagen (privates Fenster, voller Speicher) —
+    // dann gilt der Standardwert. Alle Zugriffe laufen über diese zwei Zeilen.
+    const readLocal = (key, fallback) => {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw === null ? fallback : JSON.parse(raw);
+      } catch { return fallback; }
+    };
+    const writeLocal = (key, value) => {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+    };
+
+    // ---------- Sprache (wie in MyKahoot) ----------
+    // Umgeschaltet wird nur die Oberfläche, nie der Inhalt: Titel, Paare und die
+    // eingebauten Beispiele bleiben, wie sie sind. Die Wahl merkt sich der
+    // Browser; `t(key, …args)` liest das Wörterbuch, dynamische Texte sind
+    // Funktionen, Texte mit Auszeichnung stehen als JSX drin. Fehlt ein Key,
+    // kommt Deutsch bzw. der Key selbst — eine Lücke bricht nie die Anzeige.
+    const LANGS = [{ id: 'de', name: 'Deutsch' }, { id: 'en', name: 'English' }];
+    const LANG_KEY = 'mymemory_lang';
+    const loadLang = () => (readLocal(LANG_KEY) === 'en' ? 'en' : 'de');
+    let currentLang = loadLang();
+    document.documentElement.lang = currentLang;
+
+    const code = (x) => <code className="bg-gray-100 px-1 rounded">{x}</code>;
+
+    const I18N = {
+      de: {
+        // Auswahlseite
+        subtitle: 'Wähle ein Memory und finde die Paare!',
+        settings: 'Einstellungen',
+        language: 'Sprache',
+        createTitle: 'Memory erstellen',
+        steps: (
+          <>
+            <li>Kopiere den KI-Prompt (Button unten) in ein KI-Tool wie <b>Claude</b> oder <b>ChatGPT</b>.</li>
+            <li>Fülle dort <b>den Block zuoberst</b> aus: Thema <i>oder</i> Material (PDF/Text anhängen), Klasse, Anzahl Paare, Sprache … Alles darunter unverändert lassen — das ist die Formatvorgabe.</li>
+            <li>Du erhältst eine .txt-Datei <i>und</i> denselben Text zum Kopieren (Format {code('F:')} / {code('A:')} / {code('---')}).</li>
+            <li>Datei unten in die Ablage-Fläche ziehen — oder den Text ins Feld darunter einfügen.</li>
+          </>
+        ),
+        copyPrompt: 'KI-Prompt kopieren',
+        promptCopied: 'KI-Prompt kopiert!',
+        dropTitle: 'Datei hierher ziehen',
+        dropHint: 'oder klicken zum Auswählen (.txt im F:/A:/---‑Format)',
+        orPaste: 'oder Text einfügen',
+        pastedTitlePh: 'Titel (z.B. Hauptstädte Europas)',
+        pastePh: 'F: Hauptstadt der Schweiz\nA: Bern\n---',
+        importText: 'Text importieren',
+        importHint: 'Importierte Memories werden in diesem Browser gespeichert. Bewahre die Originaldatei trotzdem auf — leert der Browser seinen Speicher, importierst du sie einfach wieder.',
+        myMemories: 'Meine Memories',
+        examples: 'Beispiele',
+        emptyList: 'Noch nichts da — oben ein Memory erstellen oder eine Datei hierher ziehen.',
+        storedHint: 'Gespeichert in diesem Browser. Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze Memory. Memories und Ordner lassen sich per Ziehen umhängen.',
+        nPairs: (n) => `${n} ${n === 1 ? 'Paar' : 'Paare'}`,
+        // Knöpfe und Rückmeldungen
+        newMemory: 'Neues Memory',
+        newMemoryHere: 'Neues Memory in diesem Ordner',
+        newFolder: 'Neuer Ordner',
+        newSubfolder: 'Unterordner anlegen',
+        renameFolder: 'Ordner umbenennen',
+        deleteFolder: 'Ordner löschen (nur wenn leer)',
+        exportAll: 'Alle Memories als ZIP herunterladen',
+        exportOne: 'Als .txt herunterladen',
+        copyLink: 'Direktlink kopieren',
+        showQr: 'QR-Code anzeigen',
+        edit: 'Bearbeiten',
+        del: 'Löschen',
+        linkCopied: 'Direktlink kopiert!',
+        downloadedOne: (title) => `«${title}» heruntergeladen`,
+        downloadedAll: (n) => `${n} ${n === 1 ? 'Memory' : 'Memories'} heruntergeladen`,
+        noOwnMemories: 'Noch keine eigenen Memories da',
+        zipFailed: 'Der ZIP-Export hat nicht geklappt.',
+        imported: (title, n) => `«${title}» importiert (${t('nPairs', n)})`,
+        noPairsInFile: (name) => `«${name}»: keine Paare gefunden (Format F:/A:/---)`,
+        noPairsFound: 'Keine Paare gefunden (Format F:/A:/---)',
+        folderNotEmpty: 'Ordner ist nicht leer — zuerst ausräumen.',
+        // Dialoge
+        cancel: 'Abbrechen',
+        create: 'Anlegen',
+        rename: 'Umbenennen',
+        discard: 'Verwerfen',
+        save: 'Speichern',
+        close: 'Schliessen',
+        copyLinkBtn: 'Link kopieren',
+        askSubfolder: (name) => `Name des Unterordners in «${name}»:`,
+        askFolder: 'Name des neuen Ordners:',
+        askRename: 'Neuer Name des Ordners:',
+        confirmDeleteFolder: (name) => `Ordner «${name}» löschen?`,
+        confirmDeleteMemory: (title) => `«${title}» löschen?`,
+        confirmDiscard: 'Änderungen verwerfen?',
+        qrTooBig: 'Dieses Memory ist zu gross für einen QR-Code — nutze den Direktlink.',
+        // Editor
+        editMemory: 'Memory bearbeiten',
+        titleLabel: 'Titel',
+        titlePh: 'Titel des Memorys',
+        folderLabel: 'Ordner',
+        rootFolder: 'Hauptordner',
+        makeFolder: 'Ordner anlegen',
+        pairN: (n) => `Paar ${n}`,
+        moveUp: 'Nach oben',
+        moveDown: 'Nach unten',
+        deletePair: 'Paar löschen',
+        front: 'Vorderseite',
+        back: 'Rückseite',
+        frontPh: 'z.B. $\\sqrt{169}$',
+        backPh: 'z.B. $13$',
+        addPair: 'Paar hinzufügen',
+        dupAnswer: (a) => `Achtung: «${a}» kommt mehrfach als Rückseite vor — im Spiel passt sie dann zu mehreren Karten.`,
+        errTitle: 'Der Titel fehlt.',
+        errTitleTaken: 'Ein Memory mit diesem Titel gibt es schon.',
+        errNoPair: 'Mindestens ein Paar eintragen.',
+        errHalfPair: 'Jedes Paar braucht Vorder- und Rückseite.',
+        editorHint: () => (
+          <>Längere Einträge werden auf allen Karten gleich gross gesetzt — der längste Eintrag bestimmt
+          die Stufe ({FONT_STEPS[0]} bis {FONT_STEPS.at(-1)} px, auf dem Handy {FONT_STEPS_SM[0]} bis
+          {' '}{FONT_STEPS_SM.at(-1)} px). LaTeX in {code('$…$')} wird gerendert.</>
+        ),
+        // Spiel
+        overview: 'Übersicht',
+        toOverview: 'Zur Übersicht',
+        player1: 'Spieler 1',
+        player2: 'Spieler 2',
+        newGame: 'Neues Spiel',
+        gameOver: 'Spiel beendet!',
+        p1Wins: 'Spieler 1 gewinnt! 🎉',
+        p2Wins: 'Spieler 2 gewinnt! 🎉',
+        draw: 'Unentschieden! 🤝',
+        playAgain: 'Nochmal spielen',
+        loading: 'Lade Memory…',
+        errNoSuchMemory: 'Dieses Memory gibt es nicht.',
+        errNotStored: 'Dieses Memory ist in diesem Browser nicht gespeichert.',
+        errLinkEmpty: 'Der Link enthält keine Paare.',
+        errLinkBroken: 'Der Link konnte nicht gelesen werden.',
+        errGone: 'Dieses Memory gibt es nicht (mehr).',
+        backToList: 'Zurück zur Auswahl',
+      },
+      en: {
+        subtitle: 'Pick a memory and find the pairs!',
+        settings: 'Settings',
+        language: 'Language',
+        createTitle: 'Create a memory',
+        steps: (
+          <>
+            <li>Copy the AI prompt (button below) into an AI tool such as <b>Claude</b> or <b>ChatGPT</b>.</li>
+            <li>Fill in <b>the block at the top</b>: topic <i>or</i> material (attach a PDF/text), class, number of pairs, language … Leave everything below unchanged — that is the format spec.</li>
+            <li>You get a .txt file <i>and</i> the same text to copy (format {code('F:')} / {code('A:')} / {code('---')}).</li>
+            <li>Drag the file onto the drop area below — or paste the text into the field underneath.</li>
+          </>
+        ),
+        copyPrompt: 'Copy AI prompt',
+        promptCopied: 'AI prompt copied!',
+        dropTitle: 'Drag a file here',
+        dropHint: 'or click to choose one (.txt in F:/A:/--- format)',
+        orPaste: 'or paste text',
+        pastedTitlePh: 'Title (e.g. Capitals of Europe)',
+        pastePh: 'F: Capital of Switzerland\nA: Bern\n---',
+        importText: 'Import text',
+        importHint: 'Imported memories are stored in this browser. Keep the original file anyway — if the browser clears its storage, you simply import it again.',
+        myMemories: 'My memories',
+        examples: 'Examples',
+        emptyList: 'Nothing here yet — create a memory above or drag a file here.',
+        storedHint: 'Stored in this browser. To share: direct link or QR code — the whole memory is inside it. Memories and folders can be moved by dragging.',
+        nPairs: (n) => `${n} ${n === 1 ? 'pair' : 'pairs'}`,
+        newMemory: 'New memory',
+        newMemoryHere: 'New memory in this folder',
+        newFolder: 'New folder',
+        newSubfolder: 'New subfolder',
+        renameFolder: 'Rename folder',
+        deleteFolder: 'Delete folder (only when empty)',
+        exportAll: 'Download all memories as a ZIP',
+        exportOne: 'Download as .txt',
+        copyLink: 'Copy direct link',
+        showQr: 'Show QR code',
+        edit: 'Edit',
+        del: 'Delete',
+        linkCopied: 'Direct link copied!',
+        downloadedOne: (title) => `“${title}” downloaded`,
+        downloadedAll: (n) => `${n} ${n === 1 ? 'memory' : 'memories'} downloaded`,
+        noOwnMemories: 'No memories of your own yet',
+        zipFailed: 'The ZIP export did not work.',
+        imported: (title, n) => `“${title}” imported (${t('nPairs', n)})`,
+        noPairsInFile: (name) => `“${name}”: no pairs found (format F:/A:/---)`,
+        noPairsFound: 'No pairs found (format F:/A:/---)',
+        folderNotEmpty: 'Folder is not empty — clear it out first.',
+        cancel: 'Cancel',
+        create: 'Create',
+        rename: 'Rename',
+        discard: 'Discard',
+        save: 'Save',
+        close: 'Close',
+        copyLinkBtn: 'Copy link',
+        askSubfolder: (name) => `Name of the subfolder in “${name}”:`,
+        askFolder: 'Name of the new folder:',
+        askRename: 'New name of the folder:',
+        confirmDeleteFolder: (name) => `Delete folder “${name}”?`,
+        confirmDeleteMemory: (title) => `Delete “${title}”?`,
+        confirmDiscard: 'Discard changes?',
+        qrTooBig: 'This memory is too big for a QR code — use the direct link.',
+        editMemory: 'Edit memory',
+        titleLabel: 'Title',
+        titlePh: 'Title of the memory',
+        folderLabel: 'Folder',
+        rootFolder: 'Main folder',
+        makeFolder: 'Create folder',
+        pairN: (n) => `Pair ${n}`,
+        moveUp: 'Move up',
+        moveDown: 'Move down',
+        deletePair: 'Delete pair',
+        front: 'Front',
+        back: 'Back',
+        frontPh: 'e.g. $\\sqrt{169}$',
+        backPh: 'e.g. $13$',
+        addPair: 'Add pair',
+        dupAnswer: (a) => `Careful: “${a}” appears as a back side more than once — in the game it then matches several cards.`,
+        errTitle: 'The title is missing.',
+        errTitleTaken: 'A memory with this title already exists.',
+        errNoPair: 'Enter at least one pair.',
+        errHalfPair: 'Every pair needs a front and a back.',
+        editorHint: () => (
+          <>Longer entries are set at the same size on every card — the longest entry sets the step
+          ({FONT_STEPS[0]} down to {FONT_STEPS.at(-1)} px, {FONT_STEPS_SM[0]} down to
+          {' '}{FONT_STEPS_SM.at(-1)} px on phones). LaTeX in {code('$…$')} is rendered.</>
+        ),
+        overview: 'Overview',
+        toOverview: 'Back to the overview',
+        player1: 'Player 1',
+        player2: 'Player 2',
+        newGame: 'New game',
+        gameOver: 'Game over!',
+        p1Wins: 'Player 1 wins! 🎉',
+        p2Wins: 'Player 2 wins! 🎉',
+        draw: "It's a draw! 🤝",
+        playAgain: 'Play again',
+        loading: 'Loading memory…',
+        errNoSuchMemory: 'This memory does not exist.',
+        errNotStored: 'This memory is not stored in this browser.',
+        errLinkEmpty: 'The link contains no pairs.',
+        errLinkBroken: 'The link could not be read.',
+        errGone: 'This memory no longer exists.',
+        backToList: 'Back to the list',
+      },
+    };
+
+    const t = (key, ...args) => {
+      const value = I18N[currentLang][key];
+      return typeof value === 'function' ? value(...args) : value;
+    };
 
     // ---------- Eingebaute Beispiel-Memories ----------
     const DEMOS = [
@@ -65,8 +315,11 @@
     ];
 
     // Aufgebaut wie der Prompt in MyKahoot: zuoberst ein Block zum Ausfüllen,
-    // darunter unverändert die Vorgaben, an denen es sonst scheitert.
-    const KI_PROMPT = [
+    // darunter unverändert die Vorgaben, an denen es sonst scheitert. Zwei
+    // Sprachfassungen — die Formatzeichen (F: / A: / ---) bleiben identisch, nur
+    // die Anleitung wechselt mit der Oberflächensprache (kiPrompt()). Welche
+    // Sprache das Memory selbst hat, gibt der Nutzer im Ausfüll-Block vor.
+    const KI_PROMPT_DE = [
       "Du schreibst Lernkarten für den Unterricht. Erstelle ein Memory-Spiel (Paare) nach meinen Angaben.",
       "",
       "===== NUR DAS HIER AUSFÜLLEN (Rest unverändert lassen) =====",
@@ -74,7 +327,7 @@
       "Für wen: [z. B. 8. Klasse]",
       "Anzahl Paare: [z. B. 12]",
       "Schwierigkeit: [leicht / mittel / schwer / gemischt]",
-      "Sprache: [Deutsch]",
+      "Sprache des Memorys: [Deutsch]",
       "Besonderes: [optional, z. B. nur Kapitel 3]",
       "============================================================",
       "",
@@ -104,8 +357,9 @@
       "- Jede Rückseite darf nur zu GENAU EINER Vorderseite passen — sonst ist im Spiel",
       "  nicht entscheidbar, welche Karten zusammengehören. Keine Rückseite zweimal.",
       "- Beide Seiten müssen für sich verständlich sein: die Karten liegen einzeln da.",
-      "- Kurz halten: Richtwert 40 Zeichen, höchstens ca. 80. Längeres wird auf der",
-      "  Karte automatisch kleiner gesetzt und dann eng.",
+      "- Kurz halten: Richtwert 40 Zeichen, höchstens ca. 80. Alle Karten tragen",
+      "  dieselbe Schriftgrösse — ein einziger langer Eintrag macht die Schrift",
+      "  also auf dem ganzen Spielfeld kleiner.",
       "- Formeln als LaTeX zwischen Dollarzeichen: $x^2 + 1$ (auch auf der Rückseite).",
       "- ALLE Zahlen gehören in den Mathe-Modus, auch einzelne: $7$, $2026$ — nie nackt als 7.",
       "- Tausendertrenner IMMER als schmales Leerzeichen \\, innerhalb der Dollarzeichen:",
@@ -121,6 +375,64 @@
       "- Steht jede Zahl im Mathe-Modus, jeder Tausendertrenner als \\,?",
       "- Stimmt das Format überall: «F: », «A: », «---»?",
     ].join("\n");
+
+    const KI_PROMPT_EN = [
+      "You write flashcards for school. Create a memory game (pairs) from my input.",
+      "",
+      "===== FILL IN THIS PART ONLY (leave the rest unchanged) =====",
+      "Topic or material: [topic in one sentence — or: see attached file/text]",
+      "For whom: [e.g. grade 8]",
+      "Number of pairs: [e.g. 12]",
+      "Difficulty: [easy / medium / hard / mixed]",
+      "Language of the memory: [English]",
+      "Special notes: [optional, e.g. chapter 3 only]",
+      "============================================================",
+      "",
+      "If I attach material, take the pairs ONLY from it. Otherwise use your own",
+      "knowledge of the topic given above.",
+      "",
+      "HOW TO OUTPUT IT — this is where it usually goes wrong:",
+      "- Give both, in this order:",
+      "  1. a file to download, extension .txt (no .docx, no PDF). The file name",
+      "     without .txt becomes the title of the memory — keep it short and fitting.",
+      "  2. the same content again in ONE code block (```), to copy.",
+      "- If you cannot produce files, the code block alone is enough.",
+      "- Not a word before or after: no introduction, no explanation, no follow-up question.",
+      "",
+      "FORMAT (exactly like this):",
+      "",
+      "F: Capital of Switzerland",
+      "A: Bern",
+      "---",
+      "F: $\\sqrt{169}$",
+      "A: $13$",
+      "---",
+      "",
+      "RULES:",
+      "- «F: » is the front, «A: » the back, «---» separates the pairs.",
+      "- A line «---» after every pair, including the last one.",
+      "- Every back must fit EXACTLY ONE front — otherwise the game cannot decide",
+      "  which cards belong together. Never use the same back twice.",
+      "- Both sides must make sense on their own: the cards lie there one by one.",
+      "- Keep it short: about 40 characters, at most ~80. All cards share one font",
+      "  size — a single long entry shrinks the text on the whole board.",
+      "- Formulas as LaTeX between dollar signs: $x^2 + 1$ (on the back too).",
+      "- ALL numbers belong in math mode, single ones too: $7$, $2026$ — never bare 7.",
+      "- Thousands separator ALWAYS as a thin space \\, inside the dollar signs:",
+      "  $468\\,000$. Neither a comma nor a period as a separator (not 468,000, not 468.000).",
+      "- No numbering, no bold, no images, no explanations.",
+      "",
+      "FINALLY: go through the pairs again and QUIETLY fix whatever does not match",
+      "the rules — output only the finished memory, no list of changes.",
+      "- Does every back really fit only its own front?",
+      "- Does a back appear twice or nearly identically?",
+      "- Are both sides short enough for a card?",
+      "- Does the level fit the given class throughout?",
+      "- Is every number in math mode, every thousands separator a \\,?",
+      "- Is the format right everywhere: «F: », «A: », «---»?",
+    ].join("\n");
+
+    const kiPrompt = () => (currentLang === 'en' ? KI_PROMPT_EN : KI_PROMPT_DE);
 
     // ---------- Dateien parsen ----------
     // Tafelfussball-Format: F: (oder Q:) Vorderseite, A: Rückseite, --- als Trenner.
@@ -162,7 +474,72 @@
         const { title, pairs } = parseMd(text);
         return { title: title || fromName, pairs };
       }
-      return { title: fromName, pairs: parseFA(text) };
+      // Steht ein «# Titel» in der Datei, gilt der: nur so überlebt ein Titel den
+      // Weg Export → Import unverändert (der Dateiname verliert z.B. «_» und «:»).
+      const inFile = text.match(/^#\s+(.+)$/m);
+      return { title: (inFile && inFile[1].trim()) || fromName, pairs: parseFA(text) };
+    };
+
+    // ---------- Dateien schreiben (Export) ----------
+    // Gegenstück zu parseFA: exportiert wird genau die Datei, die der Import
+    // wieder versteht. Zuoberst steht der Titel als «# Titel» — den liest der
+    // Import zurück, und MyTafelfussball überspringt die Zeile (sie steht vor
+    // der ersten «F: »-Zeile und wird dort keiner Aufgabe zugeschlagen).
+    const toFile = (memory) =>
+      `# ${memory.title}\n\n` +
+      memory.pairs.map((p) => `F: ${p.question}\nA: ${p.answer}\n---`).join('\n') + '\n';
+
+    // Dateiname aus dem Titel — was Dateisysteme stört, wird zum Bindestrich.
+    // Ordnerpfade Stück für Stück, sonst stünde ein «:» im ZIP-Pfad und Windows
+    // packt das Archiv nicht mehr aus.
+    const safeName = (title) => title.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Memory';
+    const safeDir = (dir) => dir.split('/').map(safeName).join('/');
+
+    // JSZip wird erst geholt, wenn jemand exportiert: wer nur einem Link folgt,
+    // lädt sonst 100 KB für einen Knopf, den er nie drückt.
+    let jsZipLoading = null;
+    const loadJsZip = () => {
+      if (window.JSZip) return Promise.resolve(window.JSZip);
+      if (!jsZipLoading) {
+        jsZipLoading = new Promise((resolve, reject) => {
+          const el = document.createElement('script');
+          el.src = 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js';
+          el.onload = () => resolve(window.JSZip);
+          el.onerror = () => { jsZipLoading = null; reject(); };
+          document.head.appendChild(el);
+        });
+      }
+      return jsZipLoading;
+    };
+
+    // Alle Memories in einem ZIP: die Ordner der App werden zu Ordnern im ZIP,
+    // jedes Memory zu seiner .txt. Gleiche Dateinamen im selben Ordner bekommen
+    // eine Nummer, damit keiner den anderen überschreibt.
+    const zipBlob = async (memories, folders) => {
+      const JSZipLib = await loadJsZip();
+      const zip = new JSZipLib();
+      const used = new Set();
+      for (const folder of folders) zip.folder(safeDir(folder)); // auch die leeren Ordner
+      for (const memory of memories) {
+        const base = `${memory.dir ? safeDir(memory.dir) + '/' : ''}${safeName(memory.title)}`;
+        let name = `${base}.txt`;
+        for (let i = 2; used.has(name); i++) name = `${base} (${i}).txt`;
+        used.add(name);
+        zip.file(name, toFile(memory));
+      }
+      return zip.generateAsync({ type: 'blob' });
+    };
+
+    const download = (name, data) => {
+      const blob = data instanceof Blob ? data : new Blob([data], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
     // ---------- Eigene Memories im Browser (localStorage) ----------
@@ -171,17 +548,13 @@
     const STORAGE_KEY = 'mymemory';
 
     const loadStore = () => {
-      try {
-        const raw = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-        return {
-          memories: (raw.memories || []).map((m) => ({ dir: '', ...m })),
-          folders: raw.folders || [],
-        };
-      } catch { return { memories: [], folders: [] }; }
+      const raw = readLocal(STORAGE_KEY, {}) || {};
+      return {
+        memories: (raw.memories || []).map((m) => ({ dir: '', ...m })),
+        folders: raw.folders || [],
+      };
     };
-    const saveStore = (store) => {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); } catch {}
-    };
+    const saveStore = (store) => writeLocal(STORAGE_KEY, store);
 
     // ---------- Ordner ----------
     // Ein Ordner ist nur ein Pfad-String ('Mathe/Klasse 8'); '' ist der
@@ -212,9 +585,7 @@
 
     // Welche Ordner sind aufgeklappt? Überlebt das Neuladen der Seite.
     const OPEN_KEY = 'mymemory_open_dirs';
-    const loadOpen = () => {
-      try { return JSON.parse(localStorage.getItem(OPEN_KEY)) || []; } catch { return []; }
-    };
+    const loadOpen = () => readLocal(OPEN_KEY, []) || [];
     const newId = () =>
       (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
 
@@ -334,43 +705,88 @@
     // Handy-Kacheln sind viel kleiner, deshalb dort eine eigene Leiter.
     const FONT_STEPS = [24, 22, 20, 18, 16, 14];
     const FONT_STEPS_SM = [18, 16, 14, 12, 11, 10];
+    const SMALL_SCREEN = window.matchMedia('(max-width: 640px)');
 
-    const FitText = ({ content }) => {
-      const inner = useRef(null);
+    // Gemessen wird nicht jede Karte für sich, sondern alle Inhalte zusammen:
+    // der längste bestimmt die Stufe für das ganze Spielfeld. So sind alle
+    // Kacheln gleich beschriftet und die Schrift springt beim Aufdecken nicht.
+    // `boxRef` zeigt auf eine echte Kachel (die Masse), gemessen wird in einer
+    // unsichtbaren Kopie mit derselben Schrift — sonst bräche es anders um.
+    const useSharedFontSize = (contents, boxRef) => {
+      const probeRef = useRef(null);
+      const [size, setSize] = useState(FONT_STEPS[0]);
+      const key = contents.join('\u0000');
 
-      // Passives useEffect (kein Layout-Effekt): so ist der KaTeX-Inhalt des
-      // MathRenderer-Kindes schon da, wenn hier gemessen wird.
+      // Passives useEffect (kein Layout-Effekt): so ist der KaTeX-Inhalt der
+      // MathRenderer-Kinder schon da, wenn hier gemessen wird.
       useEffect(() => {
         const fit = () => {
-          const el = inner.current;
-          const box = el && el.parentElement;
-          if (!box) return;
+          const box = boxRef.current, probe = probeRef.current;
+          if (!box || !probe) return;
           const cs = getComputedStyle(box);
           const availW = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
           const availH = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-          const steps = window.matchMedia('(max-width: 640px)').matches ? FONT_STEPS_SM : FONT_STEPS;
-          for (const size of steps) {
-            el.style.fontSize = `${size}px`;
-            if (el.scrollWidth <= availW && el.scrollHeight <= availH) break;
+          if (availW <= 0 || availH <= 0) return;
+          const els = Array.from(probe.children);
+          els.forEach(el => { el.style.maxWidth = `${availW}px`; });
+          const steps = SMALL_SCREEN.matches ? FONT_STEPS_SM : FONT_STEPS;
+          let chosen = steps[steps.length - 1];
+          for (const step of steps) {
+            els.forEach(el => { el.style.fontSize = `${step}px`; });
+            if (els.every(el => el.scrollWidth <= availW && el.scrollHeight <= availH)) { chosen = step; break; }
           }
+          setSize(chosen);
         };
+        // Beim Ziehen am Fensterrand kämen sonst 60 Messungen pro Sekunde —
+        // gebündelt bleibt eine pro Bild übrig.
+        let frame = 0;
+        const refit = () => {
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(fit);
+        };
+
         fit();
         // Die KaTeX-Schriften kommen nachgeladen und ändern die Masse
-        if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
-        window.addEventListener('resize', fit);
-        return () => window.removeEventListener('resize', fit);
-      }, [content]);
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(refit);
+        // Tailwind kommt vom CDN: beim ersten Messen steht die Kachel womöglich
+        // noch ohne ihr Seitenverhältnis da und wäre viel zu flach. Der Beobachter
+        // misst deshalb jedes Mal neu, wenn die Kachel ihre Grösse ändert — das
+        // deckt auch Fenstergrösse und Handy-Drehung ab.
+        const box = boxRef.current;
+        if (!window.ResizeObserver || !box) { // ältere Geräte: wenigstens beim Drehen neu messen
+          window.addEventListener('resize', refit);
+          return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', refit); };
+        }
+        const observer = new ResizeObserver(refit);
+        observer.observe(box);
+        return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+      }, [key]);
 
-      return (
-        <div ref={inner} className="max-w-full leading-tight">
-          <MathRenderer content={content} />
+      // Die Kopie hängt an den Inhalten, nicht am Spielstand: sonst würde bei
+      // jedem aufgedeckten Kärtchen die ganze KaTeX-Arbeit noch einmal anfallen.
+      const probe = useMemo(() => (
+        <div
+          ref={probeRef} aria-hidden="true" className="font-bold text-center"
+          style={{ position: 'fixed', left: 0, top: '-9999px', visibility: 'hidden' }}
+        >
+          {contents.map((content, i) => (
+            <div key={i} className="leading-tight"><MathRenderer content={content} /></div>
+          ))}
         </div>
-      );
+      ), [key]);
+      return [size, probe];
     };
+
+    const FitText = ({ content, size }) => (
+      <div className="max-w-full leading-tight" style={{ fontSize: `${size}px` }}>
+        <MathRenderer content={content} />
+      </div>
+    );
 
     // ---------- Gemeinsame Bausteine ----------
     const SCREEN = 'min-h-screen bg-gradient-to-br from-red-50 to-blue-50';
     const BTN_PRIMARY = 'bg-gradient-to-r from-red-500 to-blue-500 text-white rounded-lg font-semibold hover:from-red-600 hover:to-blue-600 transition-all shadow-lg';
+    const BTN_SECONDARY = 'bg-gray-100 text-gray-600 rounded-lg font-semibold hover:bg-gray-200 transition-all';
 
     const Modal = ({ children, onClose }) => (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -403,8 +819,8 @@
             />
           )}
           <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 px-4 py-2 bg-gray-100 rounded-lg font-semibold text-gray-600 hover:bg-gray-200">
-              Abbrechen
+            <button onClick={onClose} className={`flex-1 px-4 py-2 ${BTN_SECONDARY}`}>
+              {t('cancel')}
             </button>
             <button onClick={submit} className={`flex-1 ${BTN_PRIMARY} px-4 py-2`}>
               {dialog.ok || 'OK'}
@@ -414,42 +830,82 @@
       );
     };
 
-    const IconButton = ({ onClick, title, hover = 'hover:bg-blue-50', children }) => (
+    const IconButton = ({ onClick, title, hover = 'hover:bg-blue-50', extra = '', children }) => (
       <button onClick={onClick} title={title}
-        className={`px-3 py-3 bg-white rounded-lg shadow hover:shadow-md transition-all text-gray-500 ${hover}`}>
+        className={`px-3 py-3 bg-white rounded-lg shadow hover:shadow-md transition-all text-gray-500 ${hover} ${extra}`}>
         {children}
       </button>
     );
 
-    // ---------- Abstrakte Symbole für Link und QR-Code ----------
-    const LinkIcon = () => (
+    // ---------- Symbole ----------
+    // Einfache Strichzeichnungen statt Emoji: die kommen je nach System als
+    // bunte 3D-Bildchen. Alle teilen sich denselben Rahmen, damit sie in einer
+    // Knopfreihe gleich gross sind.
+    const Icon = ({ children }) => (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        {children}
       </svg>
     );
+
+    const LinkIcon = () => (
+      <Icon>
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+      </Icon>
+    );
     const QrIcon = () => (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <Icon>
         <rect x="3" y="3" width="7" height="7" rx="1" />
         <rect x="14" y="3" width="7" height="7" rx="1" />
         <rect x="3" y="14" width="7" height="7" rx="1" />
         <path d="M14 14.5h3.5V18H14z" />
         <path d="M18.5 18.5H21V21h-2.5z" />
-      </svg>
+      </Icon>
+    );
+    const PenIcon = () => (
+      <Icon><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" /></Icon>
+    );
+    // Schieberegler statt Zahnrad: als Strichzeichnung besser zu erkennen
+    const SettingsIcon = () => (
+      <Icon>
+        <path d="M4 8h10M18 8h2M4 16h4M12 16h8" />
+        <circle cx="16" cy="8" r="2" />
+        <circle cx="10" cy="16" r="2" />
+      </Icon>
+    );
+    const InboxIcon = () => (
+      <Icon>
+        <path d="M12 3v9" />
+        <path d="M8 8.5 12 12.5l4-4" />
+        <path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />
+      </Icon>
+    );
+    const DownloadIcon = () => (
+      <Icon>
+        <path d="M12 3v12" />
+        <path d="M7.5 10.5 12 15l4.5-4.5" />
+        <path d="M4 20h16" />
+      </Icon>
+    );
+    const PlusIcon = () => (
+      <Icon><path d="M12 5v14" /><path d="M5 12h14" /></Icon>
+    );
+    const FolderIcon = () => (
+      <Icon><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" /></Icon>
+    );
+    const TrashIcon = () => (
+      <Icon>
+        <path d="M4 7h16" />
+        <path d="M9 7V5h6v2" />
+        <path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12" />
+      </Icon>
     );
 
     // ---------- QR-Code-Dialog ----------
-    const PenIcon = () => (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round"
-              d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
-      </svg>
-    );
 
     const QrModal = ({ title, url, onClose, onCopy }) => {
-      const svg = React.useMemo(() => {
+      const svg = useMemo(() => {
         try {
           const qr = window.qrcode(0, 'M');
           qr.addData(url);
@@ -467,16 +923,16 @@
             <div className="flex justify-center mb-4 [&>svg]:w-56 [&>svg]:h-56" dangerouslySetInnerHTML={{ __html: svg }} />
           ) : (
             <div className="text-center text-red-600 mb-4">
-              Dieses Memory ist zu gross für einen QR-Code — nutze den Direktlink.
+              {t('qrTooBig')}
             </div>
           )}
           <div className="text-xs text-gray-400 break-all max-h-16 overflow-y-auto mb-4">{url}</div>
           <div className="flex gap-2">
             <button onClick={onCopy} className={`flex-1 ${BTN_PRIMARY} px-4 py-2`}>
-              Link kopieren
+              {t('copyLinkBtn')}
             </button>
-            <button onClick={onClose} className="px-4 py-2 rounded-lg font-semibold bg-gray-100 text-gray-700">
-              Schliessen
+            <button onClick={onClose} className={`px-4 py-2 ${BTN_SECONDARY}`}>
+              {t('close')}
             </button>
           </div>
         </Modal>
@@ -484,8 +940,9 @@
     };
 
     // ---------- Auswahlseite ----------
-    const Selection = ({ own, folders, onOpen, onEdit, onNew, onImport, onDelete, folderApi }) => {
+    const Selection = ({ own, folders, onLang, onOpen, onEdit, onNew, onImport, onDelete, folderApi }) => {
       const [toast, setToast] = useState(null);
+      const [settingsOpen, setSettingsOpen] = useState(false);
       const [qr, setQr] = useState(null); // { title, url }
       const [createOpen, setCreateOpen] = useState(false);
       const [openDirs, setOpenDirs] = useState(loadOpen);
@@ -504,28 +961,45 @@
       const copyText = (text, msg) =>
         navigator.clipboard.writeText(text).then(() => showToast(msg));
 
-      const copyLink = async (memory) => copyText(await directLink(memory), 'Direktlink kopiert!');
+      const copyLink = async (memory) => copyText(await directLink(memory), t('linkCopied'));
       const showQr = async (memory) => setQr({ title: memory.title, url: await directLink(memory) });
+
+      // Ein Memory als .txt herunterladen — dieselbe Datei, die der Import frisst
+      const exportOne = (memory) => {
+        download(`${safeName(memory.title)}.txt`, toFile(memory));
+        showToast(t('downloadedOne', memory.title));
+      };
+
+      // Alle eigenen Memories als ZIP (s. zipBlob)
+      const exportAll = async () => {
+        if (!own.length) { showToast(t('noOwnMemories')); return; }
+        try {
+          download('MyMemory.zip', await zipBlob(own, folders));
+        } catch {
+          showToast(t('zipFailed'));
+          return;
+        }
+        showToast(t('downloadedAll', own.length));
+      };
 
       // Einziger Weg von Text zu Memory — Datei und Einfügefeld teilen ihn sich
       const addImported = (text, name, dir, complain) => {
         const { title, pairs } = parseFile(text, name);
         if (!pairs.length) { showToast(complain); return false; }
         onImport({ id: newId(), title, pairs, dir });
-        showToast(`«${title}» importiert (${pairs.length} Paare)`);
+        showToast(t('imported', title, pairs.length));
         return true;
       };
 
       const importFiles = (fileList, dir = '') => {
         for (const file of fileList) {
           file.text().then((text) =>
-            addImported(text, file.name, dir, `«${file.name}»: keine Paare gefunden (Format F:/A:/---)`));
+            addImported(text, file.name, dir, t('noPairsInFile', file.name)));
         }
       };
 
       const importPasted = () => {
-        const done = addImported(pasted, pastedTitle.trim() || 'Neues Memory', '',
-          'Keine Paare gefunden (Format F:/A:/---)');
+        const done = addImported(pasted, pastedTitle.trim() || 'Memory', '', t('noPairsFound'));
         if (!done) return;
         setPasted('');
         setPastedTitle('');
@@ -552,7 +1026,7 @@
       // ---- Ordner auf-/zuklappen (gemerkt) ----
       const rememberOpen = (dirs) => {
         setOpenDirs(dirs);
-        try { localStorage.setItem(OPEN_KEY, JSON.stringify(dirs)); } catch {}
+        writeLocal(OPEN_KEY, dirs);
       };
       const toggleDir = (dir) =>
         rememberOpen(openDirs.includes(dir) ? openDirs.filter((d) => d !== dir) : [...openDirs, dir]);
@@ -617,8 +1091,8 @@
       });
 
       const newFolder = (parent) => setDialog({
-        kind: 'prompt', ok: 'Anlegen',
-        label: parent ? `Name des Unterordners in «${dirName(parent)}»:` : 'Name des neuen Ordners:',
+        kind: 'prompt', ok: t('create'),
+        label: parent ? t('askSubfolder', dirName(parent)) : t('askFolder'),
         onOk: (name) => {
           const path = folderApi.makeFolder(parent, name);
           if (path) rememberOpen([...new Set([...openDirs, parent, path].filter(Boolean))]);
@@ -626,7 +1100,7 @@
       });
 
       const renameFolder = (dir) => setDialog({
-        kind: 'prompt', ok: 'Umbenennen', label: 'Neuer Name des Ordners:', preset: dirName(dir),
+        kind: 'prompt', ok: t('rename'), label: t('askRename'), preset: dirName(dir),
         onOk: (name) => {
           const target = folderApi.renameFolder(dir, name);
           if (target) rememberOpen(openDirs.map((d) => (inside(d, dir) ? target + d.slice(dir.length) : d)));
@@ -637,11 +1111,11 @@
       // ganze Sammlung weg (und der Papierkorb ist hier der localStorage).
       const dropFolder = (dir) => {
         if (own.some((m) => inside(m.dir || '', dir)) || folders.some((f) => f !== dir && inside(f, dir))) {
-          showToast('Ordner ist nicht leer — zuerst ausräumen.');
+          showToast(t('folderNotEmpty'));
           return;
         }
         setDialog({
-          kind: 'confirm', ok: 'Löschen', text: `Ordner «${dirName(dir)}» löschen?`,
+          kind: 'confirm', ok: t('del'), text: t('confirmDeleteFolder', dirName(dir)),
           onYes: () => {
             folderApi.removeFolder(dir);
             rememberOpen(openDirs.filter((d) => d !== dir));
@@ -657,24 +1131,25 @@
         >
           <button
             onClick={() => onOpen(memory)}
-            className="flex-1 min-w-0 text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all font-semibold text-gray-800"
+            className="flex-1 min-w-0 truncate text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all font-semibold text-gray-800"
           >
             {memory.title}
-            <span className="ml-2 text-sm font-normal text-gray-400">{memory.pairs.length} Paare</span>
+            <span className="ml-2 text-sm font-normal text-gray-400">{t('nPairs', memory.pairs.length)}</span>
           </button>
-          <IconButton onClick={() => copyLink(memory)} title="Direktlink kopieren"><LinkIcon /></IconButton>
-          <IconButton onClick={() => showQr(memory)} title="QR-Code anzeigen"><QrIcon /></IconButton>
+          <IconButton onClick={() => exportOne(memory)} title={t('exportOne')} extra="hidden sm:block"><DownloadIcon /></IconButton>
+          <IconButton onClick={() => copyLink(memory)} title={t('copyLink')}><LinkIcon /></IconButton>
+          <IconButton onClick={() => showQr(memory)} title={t('showQr')}><QrIcon /></IconButton>
           {deletable && (
-            <IconButton onClick={() => onEdit(memory)} title="Bearbeiten"><PenIcon /></IconButton>
+            <IconButton onClick={() => onEdit(memory)} title={t('edit')}><PenIcon /></IconButton>
           )}
           {deletable && (
             <IconButton
               onClick={() => setDialog({
-                kind: 'confirm', ok: 'Löschen', text: `«${memory.title}» löschen?`,
+                kind: 'confirm', ok: t('del'), text: t('confirmDeleteMemory', memory.title),
                 onYes: () => onDelete(memory.id),
               })}
-              title="Löschen" hover="hover:bg-red-50"
-            >🗑️</IconButton>
+              title={t('del')} hover="hover:bg-red-50"
+            ><TrashIcon /></IconButton>
           )}
         </div>
       );
@@ -696,11 +1171,12 @@
               className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow hover:shadow-md cursor-pointer select-none"
             >
               <span className="text-gray-400 w-3">{isOpen ? '▾' : '▸'}</span>
-              <span className="flex-1 min-w-0 truncate font-semibold text-gray-700">📁 {dirName(dir)}</span>
-              <IconButton onClick={(e) => { e.stopPropagation(); onNew(dir); }} title="Neues Memory in diesem Ordner">➕</IconButton>
-              <IconButton onClick={(e) => { e.stopPropagation(); newFolder(dir); }} title="Unterordner anlegen">📁</IconButton>
-              <IconButton onClick={(e) => { e.stopPropagation(); renameFolder(dir); }} title="Ordner umbenennen"><PenIcon /></IconButton>
-              <IconButton onClick={(e) => { e.stopPropagation(); dropFolder(dir); }} title="Ordner löschen (nur wenn leer)" hover="hover:bg-red-50">🗑️</IconButton>
+              <span className="shrink-0 text-gray-400"><FolderIcon /></span>
+              <span className="flex-1 min-w-0 truncate font-semibold text-gray-700">{dirName(dir)}</span>
+              <IconButton onClick={(e) => { e.stopPropagation(); onNew(dir); }} title={t('newMemoryHere')}><PlusIcon /></IconButton>
+              <IconButton onClick={(e) => { e.stopPropagation(); newFolder(dir); }} title={t('newSubfolder')}><FolderIcon /></IconButton>
+              <IconButton onClick={(e) => { e.stopPropagation(); renameFolder(dir); }} title={t('renameFolder')}><PenIcon /></IconButton>
+              <IconButton onClick={(e) => { e.stopPropagation(); dropFolder(dir); }} title={t('deleteFolder')} hover="hover:bg-red-50"><TrashIcon /></IconButton>
             </div>
             {isOpen && <div className="ml-4 mt-2">{treeOf(dir)}</div>}
           </div>
@@ -717,53 +1193,76 @@
       return (
         <div className={`${SCREEN} p-4 sm:p-8`}>
           <div className="max-w-2xl mx-auto">
-            <h1 className="text-4xl font-bold text-center mb-2 text-gray-800">MyMemory</h1>
-            <p className="text-center text-gray-500 mb-8">Wähle ein Memory und finde die Paare!</p>
+            <div className="relative mb-2">
+              <h1 className="text-4xl font-bold text-center text-gray-800">MyMemory</h1>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                <IconButton onClick={() => setSettingsOpen((v) => !v)} title={t('settings')}><SettingsIcon /></IconButton>
+              </div>
+            </div>
+            <p className="text-center text-gray-500 mb-8">{t('subtitle')}</p>
+
+            {/* Einstellungen wie in MyKahoot: eine Kachel pro Thema, vorerst nur die Sprache */}
+            {settingsOpen && (
+              <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 className="text-lg font-semibold text-gray-700 mb-3">{t('settings')}</h2>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs uppercase tracking-wide text-gray-400 mb-2">{t('language')}</div>
+                  <div className="flex gap-2">
+                    {LANGS.map((entry) => (
+                      <button
+                        key={entry.id} onClick={() => onLang(entry.id)}
+                        className={`px-4 py-2 ${entry.id === currentLang ? BTN_PRIMARY : BTN_SECONDARY}`}
+                      >
+                        {entry.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
 
             <div className="bg-white rounded-lg shadow-lg mb-8">
               <button
                 onClick={() => setCreateOpen((v) => !v)}
                 className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
               >
-                <h2 className="text-lg font-semibold text-gray-700">Memory erstellen</h2>
+                <h2 className="text-lg font-semibold text-gray-700">{t('createTitle')}</h2>
                 <span className={`text-gray-400 transition-transform ${createOpen ? 'rotate-90' : ''}`}>▶</span>
               </button>
               {createOpen && (
                 <div className="px-6 pb-6">
                   <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mb-4">
-                    <li>Kopiere den KI-Prompt (Button unten) in ein KI-Tool wie <b>Claude</b> oder <b>ChatGPT</b>.</li>
-                    <li>Fülle dort <b>den Block zuoberst</b> aus: Thema <i>oder</i> Material (PDF/Text anhängen), Klasse, Anzahl Paare … Alles darunter unverändert lassen — das ist die Formatvorgabe.</li>
-                    <li>Du erhältst eine .txt-Datei <i>und</i> denselben Text zum Kopieren (Format <code className="bg-gray-100 px-1 rounded">F:</code> / <code className="bg-gray-100 px-1 rounded">A:</code> / <code className="bg-gray-100 px-1 rounded">---</code>).</li>
-                    <li>Datei unten in die Ablage-Fläche ziehen — oder den Text ins Feld darunter einfügen.</li>
+                    {t('steps')}
                   </ol>
                   <button
-                    onClick={() => copyText(KI_PROMPT, 'KI-Prompt kopiert!')}
+                    onClick={() => copyText(kiPrompt(), t('promptCopied'))}
                     className={`w-full ${BTN_PRIMARY} px-4 py-2 mb-6`}
                   >
-                    KI-Prompt kopieren
+                    {t('copyPrompt')}
                   </button>
                   <div
                     onClick={() => fileInput.current.click()}
                     className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500 cursor-pointer hover:border-blue-400 hover:text-gray-700 hover:bg-blue-50 transition-all"
                   >
-                    📥 <b>Datei hierher ziehen</b><br />
-                    <span className="text-sm text-gray-400">oder klicken zum Auswählen (.txt im F:/A:/---‑Format)</span>
+                    <span className="flex items-center justify-center gap-2 font-bold"><InboxIcon /> {t('dropTitle')}</span>
+                    <span className="block text-sm text-gray-400">{t('dropHint')}</span>
                   </div>
                   <input
                     ref={fileInput} type="file" accept=".txt,.md" multiple className="hidden"
                     onChange={(e) => { importFiles(e.target.files); e.target.value = ''; }}
                   />
                   <div className="flex items-center gap-3 my-4 text-xs uppercase tracking-wide text-gray-400">
-                    <span className="flex-1 h-px bg-gray-200" /> oder Text einfügen <span className="flex-1 h-px bg-gray-200" />
+                    <span className="flex-1 h-px bg-gray-200" /> {t('orPaste')} <span className="flex-1 h-px bg-gray-200" />
                   </div>
                   <input
                     type="text" value={pastedTitle} onChange={(e) => setPastedTitle(e.target.value)}
-                    placeholder="Titel (z.B. Hauptstädte Europas)"
+                    placeholder={t('pastedTitlePh')}
                     className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-400"
                   />
                   <textarea
                     value={pasted} onChange={(e) => setPasted(e.target.value)} rows={5}
-                    placeholder={'F: Hauptstadt der Schweiz\nA: Bern\n---'}
+                    placeholder={t('pastePh')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:border-blue-400"
                   />
                   <button
@@ -771,21 +1270,19 @@
                     disabled={!pasted.trim()}
                     className={`w-full mt-2 px-4 py-2 rounded-lg font-semibold transition-all ${pasted.trim() ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
                   >
-                    Text importieren
+                    {t('importText')}
                   </button>
-                  <p className="text-xs text-gray-400 mt-3">
-                    Importierte Memories werden in diesem Browser gespeichert. Bewahre die Originaldatei
-                    trotzdem auf — leert der Browser seinen Speicher, importierst du sie einfach wieder.
-                  </p>
+                  <p className="text-xs text-gray-400 mt-3">{t('importHint')}</p>
                 </div>
               )}
             </div>
 
             <div className="mb-8">
               <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-lg font-semibold text-gray-600 flex-1">Meine Memories</h2>
-                <IconButton onClick={() => onNew('')} title="Neues Memory">➕</IconButton>
-                <IconButton onClick={() => newFolder('')} title="Neuer Ordner">📁</IconButton>
+                <h2 className="text-lg font-semibold text-gray-600 flex-1">{t('myMemories')}</h2>
+                <IconButton onClick={() => onNew('')} title={t('newMemory')}><PlusIcon /></IconButton>
+                <IconButton onClick={() => newFolder('')} title={t('newFolder')}><FolderIcon /></IconButton>
+                <IconButton onClick={exportAll} title={t('exportAll')}><DownloadIcon /></IconButton>
               </div>
               {/* Die Liste selbst ist der Hauptordner: was hierher gezogen wird, liegt in keinem Ordner */}
               <div
@@ -793,21 +1290,16 @@
                 className={`min-h-[3rem] rounded-lg border-2 transition-colors ${dropDir === '' ? 'border-blue-400 bg-blue-50/60' : 'border-transparent'}`}
               >
                 {own.length || folders.length ? treeOf('') : (
-                  <p className="text-sm text-gray-400 px-1 py-3">
-                    Noch nichts da — oben ein Memory erstellen oder eine Datei hierher ziehen.
-                  </p>
+                  <p className="text-sm text-gray-400 px-1 py-3">{t('emptyList')}</p>
                 )}
               </div>
               {own.length > 0 && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Gespeichert in diesem Browser. Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze
-                  Memory. Memories und Ordner lassen sich per Ziehen umhängen.
-                </p>
+                <p className="text-xs text-gray-400 mt-1">{t('storedHint')}</p>
               )}
             </div>
 
             <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-600 mb-3">Beispiele</h2>
+              <h2 className="text-lg font-semibold text-gray-600 mb-3">{t('examples')}</h2>
               {DEMOS.map((m) => row(m, false))}
             </div>
           </div>
@@ -817,7 +1309,7 @@
             <QrModal
               title={qr.title} url={qr.url}
               onClose={() => setQr(null)}
-              onCopy={() => copyText(qr.url, 'Direktlink kopiert!')}
+              onCopy={() => copyText(qr.url, t('linkCopied'))}
             />
           )}
           {toast && (
@@ -864,27 +1356,27 @@
           .map((p) => ({ question: p.question.trim(), answer: p.answer.trim() }))
           .filter((p) => p.question || p.answer);
         const name = title.trim();
-        if (!name) return setError('Der Titel fehlt.');
+        if (!name) return setError(t('errTitle'));
         // Titel sind der Schlüssel beim Import (gleicher Titel = neue Version).
         // Zwei gleichnamige Memories würden dort beide ersetzt — gar nicht erst
         // entstehen lassen.
         if (memories.some((m) => m.id !== memory.id && m.title === name)) {
-          return setError('Ein Memory mit diesem Titel gibt es schon.');
+          return setError(t('errTitleTaken'));
         }
-        if (!clean.length) return setError('Mindestens ein Paar eintragen.');
-        if (clean.some((p) => !p.question || !p.answer)) return setError('Jedes Paar braucht Vorder- und Rückseite.');
+        if (!clean.length) return setError(t('errNoPair'));
+        if (clean.some((p) => !p.question || !p.answer)) return setError(t('errHalfPair'));
         onSave({ ...memory, title: name, dir, pairs: clean });
       };
 
       const cancel = () => {
         // Ungespeicherte Arbeit nicht wortlos wegwerfen
         if (snapshot === openSnapshot) return onCancel();
-        setDialog({ kind: 'confirm', ok: 'Verwerfen', text: 'Änderungen verwerfen?', onYes: onCancel });
+        setDialog({ kind: 'confirm', ok: t('discard'), text: t('confirmDiscard'), onYes: onCancel });
       };
 
       const newFolder = () => setDialog({
-        kind: 'prompt', ok: 'Anlegen',
-        label: dir ? `Name des Unterordners in «${dirName(dir)}»:` : 'Name des neuen Ordners:',
+        kind: 'prompt', ok: t('create'),
+        label: dir ? t('askSubfolder', dirName(dir)) : t('askFolder'),
         onOk: (name) => { const path = onNewFolder(dir, name); if (path) setDir(path); },
       });
 
@@ -909,71 +1401,66 @@
         <div className={`${SCREEN} p-4 sm:p-8`}>
           <div className="max-w-2xl mx-auto">
             <h1 className="text-2xl font-bold text-gray-800 mb-6">
-              {memory.id ? 'Memory bearbeiten' : 'Neues Memory'}
+              {memory.id ? t('editMemory') : t('newMemory')}
             </h1>
 
             <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
               <label className="block mb-4">
-                <span className="text-xs uppercase tracking-wide text-gray-400">Titel</span>
+                <span className="text-xs uppercase tracking-wide text-gray-400">{t('titleLabel')}</span>
                 <input
                   type="text" value={title} onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Titel des Memorys"
+                  placeholder={t('titlePh')}
                   className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
                 />
               </label>
-              <span className="text-xs uppercase tracking-wide text-gray-400">Ordner</span>
+              <span className="text-xs uppercase tracking-wide text-gray-400">{t('folderLabel')}</span>
               <div className="flex gap-2 mt-1">
                 <select
                   value={dir} onChange={(e) => setDir(e.target.value)}
                   className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-blue-400"
                 >
-                  <option value="">Hauptordner</option>
+                  <option value="">{t('rootFolder')}</option>
                   {folders.map((f) => (
                     <option key={f} value={f}>{'\u00a0\u00a0'.repeat(f.split('/').length - 1) + dirName(f)}</option>
                   ))}
                 </select>
-                <IconButton onClick={newFolder} title="Ordner anlegen">📁</IconButton>
+                <IconButton onClick={newFolder} title={t('makeFolder')}><FolderIcon /></IconButton>
               </div>
             </div>
 
             {pairs.map((pair, i) => (
               <div key={i} className="bg-white rounded-lg shadow p-4 mb-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="flex-1 text-sm font-semibold text-gray-400">Paar {i + 1}</span>
-                  <IconButton onClick={() => movePair(i, -1)} title="Nach oben">↑</IconButton>
-                  <IconButton onClick={() => movePair(i, 1)} title="Nach unten">↓</IconButton>
-                  <IconButton onClick={() => removePair(i)} title="Paar löschen" hover="hover:bg-red-50">🗑️</IconButton>
+                  <span className="flex-1 text-sm font-semibold text-gray-400">{t('pairN', i + 1)}</span>
+                  <IconButton onClick={() => movePair(i, -1)} title={t('moveUp')}>↑</IconButton>
+                  <IconButton onClick={() => movePair(i, 1)} title={t('moveDown')}>↓</IconButton>
+                  <IconButton onClick={() => removePair(i)} title={t('deletePair')} hover="hover:bg-red-50"><TrashIcon /></IconButton>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-3">
-                  {field(i, 'question', 'Vorderseite', 'z.B. $\\sqrt{169}$')}
-                  {field(i, 'answer', 'Rückseite', 'z.B. $13$')}
+                  {field(i, 'question', t('front'), t('frontPh'))}
+                  {field(i, 'answer', t('back'), t('backPh'))}
                 </div>
               </div>
             ))}
 
-            <button onClick={addPair} className="w-full px-4 py-2 mb-4 bg-white rounded-lg shadow hover:shadow-md font-semibold text-gray-600">
-              ➕ Paar hinzufügen
+            <button onClick={addPair} className="w-full px-4 py-2 mb-4 bg-white rounded-lg shadow hover:shadow-md font-semibold text-gray-600 flex items-center justify-center gap-2">
+              <PlusIcon /> {t('addPair')}
             </button>
 
             {duplicate && (
-              <p className="text-sm text-amber-600 mb-2">
-                Achtung: «{duplicate}» kommt mehrfach als Rückseite vor — im Spiel passt sie dann zu mehreren Karten.
-              </p>
+              <p className="text-sm text-amber-600 mb-2">{t('dupAnswer', duplicate)}</p>
             )}
             {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
 
             <div className="flex gap-3">
               <button onClick={cancel} className="flex-1 px-4 py-3 bg-white rounded-lg shadow hover:shadow-md font-semibold text-gray-600">
-                Abbrechen
+                {t('cancel')}
               </button>
               <button onClick={save} className={`flex-1 ${BTN_PRIMARY} px-4 py-3`}>
-                Speichern
+                {t('save')}
               </button>
             </div>
-            <p className="text-xs text-gray-400 mt-3">
-              Längere Einträge werden auf der Karte automatisch kleiner gesetzt (24 bis 14 px) — sehr lange
-              bleiben trotzdem eng. LaTeX in <code className="bg-gray-100 px-1 rounded">$…$</code> wird gerendert.
-            </p>
+            <p className="text-xs text-gray-400 mt-3">{t('editorHint')}</p>
           </div>
           {dialog && <AskModal dialog={dialog} onClose={() => setDialog(null)} />}
         </div>
@@ -998,6 +1485,13 @@
       const [currentPlayer, setCurrentPlayer] = useState(1);
       const [scores, setScores] = useState({ player1: 0, player2: 0 });
       const [isChecking, setIsChecking] = useState(false);
+
+      // Eine Schriftgrösse für alle Kacheln, bestimmt vom längsten Eintrag.
+      // Gemessen wird an den Paaren, nicht an den gemischten Karten — sonst
+      // begänne das Messen bei jedem «Neues Spiel» von vorn.
+      const tileRef = useRef(null);
+      const contents = useMemo(() => allPairs.flatMap(p => [p.question, p.answer]), [allPairs]);
+      const [fontSize, fontProbe] = useSharedFontSize(contents, tileRef);
 
       // Spaltenzahl so wählen, dass das Raster möglichst aufgeht
       const colsFor = (n, candidates, fallback) => {
@@ -1065,10 +1559,10 @@
             <div className="relative mb-8">
               <button
                 onClick={onBack}
-                title="Zur Übersicht"
+                title={t('toOverview')}
                 className="absolute left-0 top-1/2 -translate-y-1/2 bg-white px-4 py-2 rounded-lg shadow hover:shadow-md transition-all font-semibold text-gray-700"
               >
-                ← Übersicht
+                ← {t('overview')}
               </button>
               <h1 className="text-3xl sm:text-4xl font-bold text-center text-gray-800">{title}</h1>
             </div>
@@ -1077,11 +1571,11 @@
             <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
               <div className="flex justify-around items-center">
                 <div className={`text-center p-4 rounded-lg transition-all ${currentPlayer === 1 && !isGameComplete ? 'bg-red-100 ring-2 ring-red-500' : 'bg-gray-50'}`}>
-                  <div className="text-lg font-semibold text-gray-700">Spieler 1</div>
+                  <div className="text-lg font-semibold text-gray-700">{t('player1')}</div>
                   <div className="text-3xl font-bold text-red-600">{scores.player1}</div>
                 </div>
                 <div className={`text-center p-4 rounded-lg transition-all ${currentPlayer === 2 && !isGameComplete ? 'bg-blue-100 ring-2 ring-blue-500' : 'bg-gray-50'}`}>
-                  <div className="text-lg font-semibold text-gray-700">Spieler 2</div>
+                  <div className="text-lg font-semibold text-gray-700">{t('player2')}</div>
                   <div className="text-3xl font-bold text-blue-600">{scores.player2}</div>
                 </div>
               </div>
@@ -1089,7 +1583,8 @@
 
             {/* Spielfeld */}
             <div className="board mb-8 max-w-4xl mx-auto" style={{ '--cols': cols, '--cols-sm': colsSm }}>
-              {cards.map((card) => {
+              {fontProbe}
+              {cards.map((card, i) => {
                 const matched = matchedPairs.includes(card.pairId);
                 const flipped = flippedCards.includes(card.id) || matched;
 
@@ -1101,7 +1596,7 @@
                       !flipped ? 'hover:scale-105' : ''
                     }`}
                   >
-                    <div className={`w-full h-full rounded-lg shadow-md flex items-center justify-center overflow-hidden p-2 sm:p-3 text-sm sm:text-lg font-bold text-center transition-all duration-300 ${
+                    <div ref={i === 0 ? tileRef : null} className={`w-full h-full rounded-lg shadow-md flex items-center justify-center overflow-hidden p-2 sm:p-3 text-sm sm:text-lg font-bold text-center transition-all duration-300 ${
                       flipped
                         ? matched
                           ? 'bg-green-100 text-green-800'
@@ -1111,7 +1606,7 @@
                         : 'bg-gradient-to-br from-red-400 to-blue-500 text-white hover:from-red-500 hover:to-blue-600'
                     }`}>
                       {flipped ? (
-                        <FitText content={card.content} />
+                        <FitText content={card.content} size={fontSize} />
                       ) : (
                         '?'
                       )}
@@ -1124,35 +1619,35 @@
             {/* Neues Spiel Button */}
             <div className="text-center">
               <button onClick={resetGame} className={`${BTN_PRIMARY} px-8 py-3`}>
-                Neues Spiel
+                {t('newGame')}
               </button>
             </div>
 
             {/* Gewinner-Anzeige */}
             {isGameComplete && (
               <Modal>
-                  <h2 className="text-3xl font-bold text-center mb-4">Spiel beendet!</h2>
+                  <h2 className="text-3xl font-bold text-center mb-4">{t('gameOver')}</h2>
                   <div className="text-center mb-6">
                     {scores.player1 > scores.player2 ? (
-                      <div className="text-2xl text-red-600 font-bold">Spieler 1 gewinnt! 🎉</div>
+                      <div className="text-2xl text-red-600 font-bold">{t('p1Wins')}</div>
                     ) : scores.player2 > scores.player1 ? (
-                      <div className="text-2xl text-blue-600 font-bold">Spieler 2 gewinnt! 🎉</div>
+                      <div className="text-2xl text-blue-600 font-bold">{t('p2Wins')}</div>
                     ) : (
-                      <div className="text-2xl text-gray-600 font-bold">Unentschieden! 🤝</div>
+                      <div className="text-2xl text-gray-600 font-bold">{t('draw')}</div>
                     )}
                   </div>
                   <div className="flex justify-around mb-6">
                     <div className="text-center">
-                      <div className="text-gray-600">Spieler 1</div>
+                      <div className="text-gray-600">{t('player1')}</div>
                       <div className="text-4xl font-bold text-red-600">{scores.player1}</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-gray-600">Spieler 2</div>
+                      <div className="text-gray-600">{t('player2')}</div>
                       <div className="text-4xl font-bold text-blue-600">{scores.player2}</div>
                     </div>
                   </div>
                   <button onClick={resetGame} className={`w-full ${BTN_PRIMARY} px-6 py-3`}>
-                    Nochmal spielen
+                    {t('playAgain')}
                   </button>
               </Modal>
             )}
@@ -1171,14 +1666,14 @@
         setError(null);
         if (route.type === 'demo') {
           const demo = demoById(route.id);
-          demo ? setMemory(demo) : setError('Dieses Memory gibt es nicht.');
+          demo ? setMemory(demo) : setError(t('errNoSuchMemory'));
         } else if (route.type === 'local') {
           const m = own.find((m) => m.id === route.id);
-          m ? setMemory(m) : setError('Dieses Memory ist in diesem Browser nicht gespeichert.');
+          m ? setMemory(m) : setError(t('errNotStored'));
         } else {
           decodeMemory(route.data)
-            .then((m) => (m.pairs.length ? setMemory(m) : setError('Der Link enthält keine Paare.')))
-            .catch(() => setError('Der Link konnte nicht gelesen werden.'));
+            .then((m) => (m.pairs.length ? setMemory(m) : setError(t('errLinkEmpty'))))
+            .catch(() => setError(t('errLinkBroken')));
         }
       }, [route.type, route.id, route.data]);
 
@@ -1187,13 +1682,13 @@
           <div className={`${SCREEN} p-8 flex flex-col items-center justify-center gap-4`}>
             <div className="text-xl text-red-600 font-semibold text-center">{error}</div>
             <button onClick={onBack} className={`${BTN_PRIMARY} px-6 py-3`}>
-              Zur Übersicht
+              {t('toOverview')}
             </button>
           </div>
         );
       }
       if (!memory) {
-        return <div className={`${SCREEN} p-8 text-center text-gray-500`}>Lade Memory…</div>;
+        return <div className={`${SCREEN} p-8 text-center text-gray-500`}>{t('loading')}</div>;
       }
       return <MemoryGame title={memory.title} allPairs={memory.pairs} onBack={onBack} />;
     };
@@ -1202,6 +1697,9 @@
     const App = () => {
       const [route, setRoute] = useState(getRoute);
       const [store, setStore] = useState(loadStore);
+      // Sprache: `currentLang` ist der Wert, den t() liest — der Zustand daneben
+      // sorgt nur dafür, dass die Oberfläche beim Umschalten neu gezeichnet wird.
+      const [, redraw] = useState(currentLang);
       const own = store.memories;
       const folders = allFolders(store);
 
@@ -1210,6 +1708,13 @@
         window.addEventListener('hashchange', onHash);
         return () => window.removeEventListener('hashchange', onHash);
       }, []);
+
+      const changeLang = (id) => {
+        currentLang = id;
+        document.documentElement.lang = id;
+        writeLocal(LANG_KEY, id);
+        redraw(id); // t() liest currentLang — der Zustand zeichnet die Seite nur neu
+      };
 
       const openMemory = (memory) => { location.hash = toHash(memory); };
       const editMemory = (memory) => { location.hash = '#edit=' + memory.id; };
@@ -1243,7 +1748,7 @@
       // ---- Ordner verwalten ----
       // Die Namen kommen aus den Dialogen (s. AskModal); '/' muss raus, das
       // trennt hier die Ebenen.
-      const cleanName = (name) => (name || '').trim().replace(/\//g, '-');
+      const cleanName = (name) => (name || '').trim().replace(/\//g, '-').replace(/^\.+$/, '-');
 
       const makeFolder = (parent, rawName) => {
         const name = cleanName(rawName);
@@ -1290,8 +1795,8 @@
         if (!target) {
           return (
             <div className={`${SCREEN} p-8 text-center text-gray-500`}>
-              Dieses Memory gibt es nicht (mehr).
-              <button onClick={back} className="block mx-auto mt-4 underline">Zurück zur Auswahl</button>
+              {t('errGone')}
+              <button onClick={back} className="block mx-auto mt-4 underline">{t('backToList')}</button>
             </div>
           );
         }
@@ -1308,7 +1813,7 @@
         ? <Game key={JSON.stringify(route)} route={route} own={own} onBack={back} />
         : (
           <Selection
-            own={own} folders={folders}
+            own={own} folders={folders} onLang={changeLang}
             onOpen={openMemory} onEdit={editMemory} onNew={newMemory}
             onImport={importMemory} onDelete={deleteMemory} folderApi={folderApi}
           />

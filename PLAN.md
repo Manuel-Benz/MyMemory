@@ -15,12 +15,35 @@ Dazugekommen:
   leer), Umhängen von Memories und Ordnern per Drag & Drop, Dateien direkt auf
   einen Ordner ziehbar. Gespeichert wird neu `{ memories, folders }`.
 - **Längere Einträge**: die Kartenschrift verkleinert sich stufenweise, bis der
-  Text in die Kachel passt (24–14 px, auf dem Handy 18–10 px).
+  Text in die Kachel passt (24–14 px, auf dem Handy 18–10 px). Gemessen wird
+  **einmal für alle Karten** in einer unsichtbaren Kopie einer Kachel: der
+  längste Eintrag bestimmt die Stufe, damit alle Kacheln gleich beschriftet sind
+  und die Schrift beim Aufdecken nicht springt.
 - **KI-Prompt im MyKahoot-Stil**: Ausfüll-Block zuoberst (Thema/Material,
-  Klasse, Anzahl Paare), darunter die Vorgaben; die KI liefert `.txt`-Datei
-  *und* denselben Text zum Kopieren.
+  Klasse, Anzahl Paare, Sprache), darunter die Vorgaben; die KI liefert
+  `.txt`-Datei *und* denselben Text zum Kopieren.
+- **Export**: einzelnes Memory als `.txt` (mit `# Titel` zuoberst, damit der
+  Titel den Weg zurück übersteht), alle zusammen als ZIP mit der Ordnerstruktur
+  der App, leere Ordner inklusive. JSZip wird erst beim ersten Export vom CDN
+  geholt — wer nur einem Link folgt, lädt es gar nicht.
+- **Sprache DE/EN** wie in MyKahoot: Wörterbuch `I18N` + `t()`, im Browser
+  gemerkt, umgeschaltet im neuen Kästchen **Einstellungen** (oben rechts). Den
+  KI-Prompt gibt es in beiden Sprachen, die Sprache des Memorys steht im
+  Ausfüll-Block. Übersetzt wird nur die Oberfläche, nie der Inhalt — auch die
+  Beispiele bleiben deutsch.
+- **Symbole** als einfache 2D-Strichzeichnungen (SVG) statt Emoji — die kamen je
+  nach System als bunte 3D-Bildchen.
 
 ## Backlog
+
+- **Sprachwahl auch beim Spielen**: die Einstellungen stecken nur in der
+  Auswahlseite — wer über Link oder QR-Code kommt, sieht die Oberfläche immer
+  auf Deutsch und käme nur über «← Übersicht» hin (was den Link wegwirft).
+- **Unerfüllbare Einträge**: eine Formel, die auf keiner Stufe passt (KaTeX
+  bricht nicht um), zieht das ganze Spielfeld auf 14 px — siehe Beispiel
+  «Wurzeln». Offen, ob solche Einträge beim Messen übergangen werden sollen.
+- **ZIP wieder einlesen**: der Import kennt nur `.txt`; ein aus dem Export
+  gezogenes ZIP samt Ordnern zurückzuholen wäre das fehlende Gegenstück.
 
 - **Memory mit Bildern** (17.07.2026 zurückgestellt):
   1. Bild-URLs: `F: https://.../bild.jpg` als Bild auf der Karte rendern —
