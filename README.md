@@ -6,9 +6,15 @@ Komplett clientseitig (wie MyTafelfussball): kein Backend, keine Inhalte auf Git
 **Live:** https://manuel-benz.github.io/MyMemory/
 
 Die Oberfläche gibt es auf **Deutsch und Englisch**: Schieberegler-Symbol oben
-rechts → „Einstellungen" → Sprache. Der Browser merkt sich die Wahl, der
-KI-Prompt wechselt mit. Übersetzt wird nur die Oberfläche — Memories, Titel und
-die Beispiele bleiben, wie sie sind.
+rechts → „Einstellungen" → Sprache. Den Knopf gibt es auf der Übersicht **und
+im Spiel**. Der Browser merkt sich die Wahl, der KI-Prompt wechselt mit.
+Übersetzt wird nur die Oberfläche — Memories, Titel und die Beispiele bleiben,
+wie sie sind.
+
+**Die Sprache reist im Link mit**: jede Adresse, welche die App schreibt, trägt
+sie am Ende (`…#m=…&l=de`) — also auch Direktlink und QR-Code. Die Klasse sieht
+das Memory in der Sprache, in der du geteilt hast, und kann im Spiel trotzdem
+umschalten; die Wahl merkt sich dann ihr Browser.
 
 ## Memory erstellen
 
@@ -44,9 +50,13 @@ A: $13$
 - LaTeX in `$...$` wird mit KaTeX gerendert, mischbar mit Text.
 - Kurz halten (Richtwert ~40 Zeichen): **Alle Kacheln tragen dieselbe
   Schriftgrösse** — der längste Eintrag bestimmt die Stufe für das ganze
-  Spielfeld (24 → 22 → 20 → 18 → 16 → 14 px, auf dem Handy 18 → 10 px). Ein
-  einziger langer Eintrag macht die Schrift also überall kleiner; sehr Langes
-  bleibt auf der untersten Stufe trotzdem eng.
+  Spielfeld (24 → 22 → 20 → 18 → 16 → 14 px, auf dem Handy 18 → 10 px).
+- Was auch auf der kleinsten Stufe nicht passt (typisch: eine lange Formel, die
+  nicht umbrechen kann), zieht das Spielfeld **nicht** mit nach unten: dieser
+  eine Eintrag wird auf seiner Kachel so weit verkleinert, bis er hineinpasst —
+  nicht kleiner als 8 px, darunter wird er abgeschnitten. Passt *kein einziger*
+  Eintrag auf der kleinsten Stufe, sind es keine Ausreisser, sondern lauter
+  lange Einträge: dann gilt wieder für alle dieselbe unterste Stufe.
 - Jede Rückseite darf nur zu genau einer Vorderseite passen.
 - Das alte Markdown-Format (`# Titel`, `## Vorderseite` + Folgezeile) wird
   beim Import weiterhin verstanden.
