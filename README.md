@@ -7,12 +7,17 @@ Komplett clientseitig (wie MyTafelfussball): kein Backend, keine Inhalte auf Git
 
 ## Memory erstellen
 
-1. Auf der Website den **KI-Prompt kopieren** (Button) und zusammen mit dem
-   Material (z.B. PDF) in ein KI-Tool wie Claude oder ChatGPT einfügen.
+Alles steckt im aufklappbaren Kästchen **„Memory erstellen"**:
+
+1. Den **KI-Prompt kopieren** (Button) und zusammen mit dem Material (z.B. PDF)
+   in ein KI-Tool wie Claude oder ChatGPT einfügen.
 2. Die erhaltene `.txt`-Datei auf die Website **ziehen** (oder die
-   Ablage-Fläche anklicken). Der Dateiname wird zum Titel.
+   Ablage-Fläche anklicken). Der Dateiname wird zum Titel. Alternativ den Text
+   direkt ins Feld **„oder Text einfügen"** kopieren und einen Titel eintippen.
 3. Das Memory erscheint unter „Meine Memories" – gespeichert im Browser
    (`localStorage`), nirgendwo sonst.
+
+Von Hand geht es auch: **➕** neben „Meine Memories" öffnet den Editor.
 
 Format (identisch mit MyTafelfussball – dieselbe Datei funktioniert in beiden Apps):
 
@@ -35,6 +40,18 @@ A: $13$
 Es werden immer **alle Paare** der Datei gespielt (Kacheln = 2 × Paare);
 das Raster passt sich der Anzahl an.
 
+## Bearbeiten und ordnen
+
+- **✎** neben einem eigenen Memory öffnet den **Editor**: Titel, Ordner und
+  alle Paare ändern, Paare hinzufügen, verschieben (↑ ↓) oder löschen. LaTeX
+  wird direkt unter dem Feld als Vorschau gerendert.
+- **Ordner** wie in MyKahoot: **📁** legt einen an (auch Unterordner, beliebig
+  tief), **✎** benennt um, **🗑️** löscht ihn – nur wenn er leer ist.
+- **Umhängen per Ziehen**: Memories und ganze Ordner lassen sich in einen
+  anderen Ordner oder zurück in die Liste (= Hauptordner) ziehen. Eine `.txt`
+  direkt auf einen Ordner gezogen wird gleich dort importiert.
+- Welche Ordner offen sind, merkt sich der Browser.
+
 ## Teilen mit der Klasse
 
 Neben jedem Memory:
@@ -45,6 +62,8 @@ Neben jedem Memory:
 - **📱 QR-Code anzeigen** – derselbe Link als QR-Code, z.B. für den Beamer.
 
 Die Beispiele (Wurzeln, Hauptstädte Europas) sind fest in die App eingebaut.
+Ordner sind reine Browser-Ordnung und stecken **nicht** im Link — geteilt wird
+immer das einzelne Memory.
 
 ## Technik
 

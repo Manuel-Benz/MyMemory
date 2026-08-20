@@ -118,14 +118,54 @@
     };
 
     // ---------- Eigene Memories im Browser (localStorage) ----------
+    // Gespeichert wird { memories, folders }. Ältere Stände kannten nur
+    // `memories` (ohne Ordner) — die landen im Hauptordner.
     const STORAGE_KEY = 'mymemory';
 
-    const loadOwn = () => {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY))?.memories || []; }
-      catch { return []; }
+    const loadStore = () => {
+      try {
+        const raw = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+        return {
+          memories: (raw.memories || []).map((m) => ({ dir: '', ...m })),
+          folders: raw.folders || [],
+        };
+      } catch { return { memories: [], folders: [] }; }
     };
-    const saveOwn = (memories) => {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ memories })); } catch {}
+    const saveStore = (store) => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); } catch {}
+    };
+
+    // ---------- Ordner ----------
+    // Ein Ordner ist nur ein Pfad-String ('Mathe/Klasse 8'); '' ist der
+    // Hauptordner. Jedes Memory trägt seinen Ordner in `dir`; `folders` hält
+    // zusätzlich die leeren Ordner fest, die sonst niemand kennen würde.
+    const dirName = (dir) => dir.split('/').pop();
+    const parentDir = (dir) => (dir.includes('/') ? dir.slice(0, dir.lastIndexOf('/')) : '');
+    const inside = (dir, ancestor) => dir === ancestor || dir.startsWith(ancestor + '/');
+    const byTitle = (a, b) => a.title.localeCompare(b.title, 'de');
+
+    // Alle sichtbaren Ordner: die gemerkten plus jeder Pfad, in dem ein Memory liegt
+    const allFolders = ({ memories, folders }) => {
+      const set = new Set(folders);
+      for (const m of memories) {
+        for (let d = m.dir || ''; d; d = parentDir(d)) set.add(d);
+      }
+      return [...set].sort((a, b) => a.localeCompare(b, 'de'));
+    };
+
+    // Ordner umhängen/umbenennen: Pfad samt allem, was darin liegt, umschreiben
+    const remapDir = (store, from, to) => {
+      const move = (d) => (inside(d, from) ? to + d.slice(from.length) : d);
+      return {
+        memories: store.memories.map((m) => ({ ...m, dir: move(m.dir || '') })),
+        folders: [...new Set(store.folders.map(move))],
+      };
+    };
+
+    // Welche Ordner sind aufgeklappt? Überlebt das Neuladen der Seite.
+    const OPEN_KEY = 'mymemory_open_dirs';
+    const loadOpen = () => {
+      try { return JSON.parse(localStorage.getItem(OPEN_KEY)) || []; } catch { return []; }
     };
     const newId = () =>
       (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2));
@@ -177,11 +217,19 @@
       return demoById(memory.id) ? base + toHash(memory) : `${base}#m=${await encodeMemory(memory)}`;
     };
 
+    // Ein von Hand verunstaltetes Fragment (#new=%zz) darf die App nicht
+    // beim ersten Rendern umbringen — dann eben ungedeutet weiterreichen.
+    const safeDecode = (raw) => {
+      try { return decodeURIComponent(raw); } catch { return raw; }
+    };
+
     const getRoute = () => {
       const hash = location.hash.slice(1);
       if (hash.startsWith('m=')) return { type: 'data', data: hash.slice(2) };
       if (hash.startsWith('demo=')) return { type: 'demo', id: hash.slice(5) };
       if (hash.startsWith('local=')) return { type: 'local', id: hash.slice(6) };
+      if (hash.startsWith('edit=')) return { type: 'edit', id: hash.slice(5) };
+      if (hash.startsWith('new=')) return { type: 'new', dir: safeDecode(hash.slice(4)) };
       return null;
     };
 
@@ -242,6 +290,40 @@
       </div>
     );
 
+    // prompt()/confirm() des Browsers sehen fremd aus und frieren die Seite ein —
+    // dieselben zwei Fragen als Modal, gesteuert über einen `dialog`-Zustand:
+    // { kind: 'prompt', label, preset, onOk } bzw. { kind: 'confirm', text, onYes }.
+    const AskModal = ({ dialog, onClose }) => {
+      const [value, setValue] = useState(dialog.preset || '');
+      const isPrompt = dialog.kind === 'prompt';
+      const submit = () => {
+        if (isPrompt) { if (!value.trim()) return; dialog.onOk(value.trim()); }
+        else dialog.onYes();
+        onClose();
+      };
+      return (
+        <Modal onClose={onClose}>
+          <p className="text-gray-700 mb-4">{isPrompt ? dialog.label : dialog.text}</p>
+          {isPrompt && (
+            <input
+              autoFocus type="text" value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+              className="w-full mb-4 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+            />
+          )}
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 px-4 py-2 bg-gray-100 rounded-lg font-semibold text-gray-600 hover:bg-gray-200">
+              Abbrechen
+            </button>
+            <button onClick={submit} className={`flex-1 ${BTN_PRIMARY} px-4 py-2`}>
+              {dialog.ok || 'OK'}
+            </button>
+          </div>
+        </Modal>
+      );
+    };
+
     const IconButton = ({ onClick, title, hover = 'hover:bg-blue-50', children }) => (
       <button onClick={onClick} title={title}
         className={`px-3 py-3 bg-white rounded-lg shadow hover:shadow-md transition-all text-gray-500 ${hover}`}>
@@ -269,6 +351,13 @@
     );
 
     // ---------- QR-Code-Dialog ----------
+    const PenIcon = () => (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round"
+              d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z" />
+      </svg>
+    );
+
     const QrModal = ({ title, url, onClose, onCopy }) => {
       const svg = React.useMemo(() => {
         try {
@@ -305,9 +394,16 @@
     };
 
     // ---------- Auswahlseite ----------
-    const Selection = ({ own, onOpen, onImport, onDelete }) => {
+    const Selection = ({ own, folders, onOpen, onEdit, onNew, onImport, onDelete, folderApi }) => {
       const [toast, setToast] = useState(null);
       const [qr, setQr] = useState(null); // { title, url }
+      const [createOpen, setCreateOpen] = useState(false);
+      const [openDirs, setOpenDirs] = useState(loadOpen);
+      const [dropDir, setDropDir] = useState(null); // Ordner, über dem gerade etwas schwebt
+      const dragged = useRef(null); // { kind: 'memory'|'dir', id, dir? }
+      const [dialog, setDialog] = useState(null); // s. AskModal
+      const [pasted, setPasted] = useState('');
+      const [pastedTitle, setPastedTitle] = useState('');
       const fileInput = useRef(null);
 
       const showToast = (msg) => {
@@ -321,18 +417,28 @@
       const copyLink = async (memory) => copyText(await directLink(memory), 'Direktlink kopiert!');
       const showQr = async (memory) => setQr({ title: memory.title, url: await directLink(memory) });
 
-      const importFiles = (fileList) => {
+      // Einziger Weg von Text zu Memory — Datei und Einfügefeld teilen ihn sich
+      const addImported = (text, name, dir, complain) => {
+        const { title, pairs } = parseFile(text, name);
+        if (!pairs.length) { showToast(complain); return false; }
+        onImport({ id: newId(), title, pairs, dir });
+        showToast(`«${title}» importiert (${pairs.length} Paare)`);
+        return true;
+      };
+
+      const importFiles = (fileList, dir = '') => {
         for (const file of fileList) {
-          file.text().then((text) => {
-            const { title, pairs } = parseFile(text, file.name);
-            if (!pairs.length) {
-              showToast(`«${file.name}»: keine Paare gefunden (Format F:/A:/---)`);
-              return;
-            }
-            onImport({ id: newId(), title, pairs });
-            showToast(`«${title}» importiert (${pairs.length} Paare)`);
-          });
+          file.text().then((text) =>
+            addImported(text, file.name, dir, `«${file.name}»: keine Paare gefunden (Format F:/A:/---)`));
         }
+      };
+
+      const importPasted = () => {
+        const done = addImported(pasted, pastedTitle.trim() || 'Neues Memory', '',
+          'Keine Paare gefunden (Format F:/A:/---)');
+        if (!done) return;
+        setPasted('');
+        setPastedTitle('');
       };
 
       // Dateien dürfen aufs ganze Fenster gezogen werden (wie bei MyTafelfussball).
@@ -353,8 +459,112 @@
         };
       }, []);
 
+      // ---- Ordner auf-/zuklappen (gemerkt) ----
+      const rememberOpen = (dirs) => {
+        setOpenDirs(dirs);
+        try { localStorage.setItem(OPEN_KEY, JSON.stringify(dirs)); } catch {}
+      };
+      const toggleDir = (dir) =>
+        rememberOpen(openDirs.includes(dir) ? openDirs.filter((d) => d !== dir) : [...openDirs, dir]);
+
+      // ---- Umhängen per Drag&Drop ----
+      // Der Zustand steckt in einer Ref statt im dataTransfer: dessen Inhalt ist
+      // beim dragover nicht lesbar, wir brauchen ihn aber genau dort (Zielprüfung).
+      // Gezogen werden Memories und Ordner (samt Inhalt), Ziel ist jeder Ordner
+      // oder die Liste selbst (= Hauptordner).
+      const canDrop = (dir) => {
+        const d = dragged.current;
+        if (!d) return false;
+        if (d.kind === 'memory') return d.dir !== dir;
+        return !inside(dir, d.id) && parentDir(d.id) !== dir; // nicht in sich selbst, nicht dorthin, wo er schon liegt
+      };
+
+      const dragProps = (item) => ({
+        draggable: true,
+        onDragStart: (e) => { dragged.current = item; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', item.id); },
+        onDragEnd: () => { dragged.current = null; setDropDir(null); },
+      });
+
+      // Immer stopPropagation: Der Ordner unter dem Zeiger entscheidet allein —
+      // auch wenn er ablehnt. Liesse man das Ereignis weiterlaufen, übernähme es
+      // der Elternordner: ein Memory zurück auf seinen eigenen Ordner gelegt
+      // landete eine Ebene höher, ein Ordner auf sich selbst gar im Hauptordner.
+      const dropProps = (dir) => ({
+        onDragOver: (e) => {
+          e.stopPropagation();
+          // Datei von aussen: landet in genau diesem Ordner (s. onDrop)
+          if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDropDir(dir); return; }
+          if (!canDrop(dir)) { setDropDir(null); return; } // kein preventDefault = hier wird nichts abgelegt
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          setDropDir(dir);
+        },
+        onDragLeave: (e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) setDropDir((cur) => (cur === dir ? null : cur));
+        },
+        onDrop: (e) => {
+          e.stopPropagation(); // sonst importiert der Fenster-Listener die Datei ein zweites Mal
+          // Datei auf einen Ordner gezogen = dort importieren
+          if (e.dataTransfer.files.length) {
+            e.preventDefault();
+            setDropDir(null);
+            importFiles(e.dataTransfer.files, dir);
+            return;
+          }
+          const item = dragged.current;
+          if (!item || !canDrop(dir)) return;
+          e.preventDefault();
+          dragged.current = null;
+          setDropDir(null);
+          // Der Zielordner klappt bewusst NICHT auf: wer etwas wegräumt, will es
+          // weggeräumt haben. Beim Ordner wandert der gemerkte Zustand mit.
+          if (item.kind === 'memory') folderApi.moveMemory(item.id, dir);
+          else {
+            const target = folderApi.moveFolder(item.id, dir);
+            rememberOpen(openDirs.map((d) => (inside(d, item.id) ? target + d.slice(item.id.length) : d)));
+          }
+        },
+      });
+
+      const newFolder = (parent) => setDialog({
+        kind: 'prompt', ok: 'Anlegen',
+        label: parent ? `Name des Unterordners in «${dirName(parent)}»:` : 'Name des neuen Ordners:',
+        onOk: (name) => {
+          const path = folderApi.makeFolder(parent, name);
+          if (path) rememberOpen([...new Set([...openDirs, parent, path].filter(Boolean))]);
+        },
+      });
+
+      const renameFolder = (dir) => setDialog({
+        kind: 'prompt', ok: 'Umbenennen', label: 'Neuer Name des Ordners:', preset: dirName(dir),
+        onOk: (name) => {
+          const target = folderApi.renameFolder(dir, name);
+          if (target) rememberOpen(openDirs.map((d) => (inside(d, dir) ? target + d.slice(dir.length) : d)));
+        },
+      });
+
+      // Gelöscht wird nur ein leerer Ordner — sonst wäre mit einem Klick eine
+      // ganze Sammlung weg (und der Papierkorb ist hier der localStorage).
+      const dropFolder = (dir) => {
+        if (own.some((m) => inside(m.dir || '', dir)) || folders.some((f) => f !== dir && inside(f, dir))) {
+          showToast('Ordner ist nicht leer — zuerst ausräumen.');
+          return;
+        }
+        setDialog({
+          kind: 'confirm', ok: 'Löschen', text: `Ordner «${dirName(dir)}» löschen?`,
+          onYes: () => {
+            folderApi.removeFolder(dir);
+            rememberOpen(openDirs.filter((d) => d !== dir));
+          },
+        });
+      };
+
       const row = (memory, deletable) => (
-        <div key={memory.id} className="flex items-center gap-2 mb-2">
+        <div
+          key={memory.id}
+          className="flex items-center gap-2 mb-2"
+          {...(deletable ? dragProps({ kind: 'memory', id: memory.id, dir: memory.dir || '' }) : {})}
+        >
           <button
             onClick={() => onOpen(memory)}
             className="flex-1 min-w-0 text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all font-semibold text-gray-800"
@@ -365,12 +575,53 @@
           <IconButton onClick={() => copyLink(memory)} title="Direktlink kopieren"><LinkIcon /></IconButton>
           <IconButton onClick={() => showQr(memory)} title="QR-Code anzeigen"><QrIcon /></IconButton>
           {deletable && (
+            <IconButton onClick={() => onEdit(memory)} title="Bearbeiten"><PenIcon /></IconButton>
+          )}
+          {deletable && (
             <IconButton
-              onClick={() => { if (confirm(`«${memory.title}» löschen?`)) onDelete(memory.id); }}
+              onClick={() => setDialog({
+                kind: 'confirm', ok: 'Löschen', text: `«${memory.title}» löschen?`,
+                onYes: () => onDelete(memory.id),
+              })}
               title="Löschen" hover="hover:bg-red-50"
             >🗑️</IconButton>
           )}
         </div>
+      );
+
+      // Ein Ordner samt Inhalt: erst die Unterordner, dann seine Memories.
+      // Gepackt wird an der Zeile, abgelegt auf der ganzen Kachel — ein Drop
+      // irgendwo im Ordner (auch auf einem seiner Memories) meint diesen Ordner.
+      const folderBox = (dir) => {
+        const isOpen = openDirs.includes(dir);
+        return (
+          <div
+            key={dir}
+            {...dropProps(dir)}
+            className={`mb-2 rounded-lg border-2 transition-colors ${dropDir === dir ? 'border-blue-400 bg-blue-50/60' : 'border-transparent'}`}
+          >
+            <div
+              {...dragProps({ kind: 'dir', id: dir })}
+              onClick={() => toggleDir(dir)}
+              className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow hover:shadow-md cursor-pointer select-none"
+            >
+              <span className="text-gray-400 w-3">{isOpen ? '▾' : '▸'}</span>
+              <span className="flex-1 min-w-0 truncate font-semibold text-gray-700">📁 {dirName(dir)}</span>
+              <IconButton onClick={(e) => { e.stopPropagation(); onNew(dir); }} title="Neues Memory in diesem Ordner">➕</IconButton>
+              <IconButton onClick={(e) => { e.stopPropagation(); newFolder(dir); }} title="Unterordner anlegen">📁</IconButton>
+              <IconButton onClick={(e) => { e.stopPropagation(); renameFolder(dir); }} title="Ordner umbenennen"><PenIcon /></IconButton>
+              <IconButton onClick={(e) => { e.stopPropagation(); dropFolder(dir); }} title="Ordner löschen (nur wenn leer)" hover="hover:bg-red-50">🗑️</IconButton>
+            </div>
+            {isOpen && <div className="ml-4 mt-2">{treeOf(dir)}</div>}
+          </div>
+        );
+      };
+
+      const treeOf = (dir) => (
+        <>
+          {folders.filter((f) => parentDir(f) === dir).map(folderBox)}
+          {own.filter((m) => (m.dir || '') === dir).map((m) => row(m, true))}
+        </>
       );
 
       return (
@@ -379,50 +630,91 @@
             <h1 className="text-4xl font-bold text-center mb-2 text-gray-800">MyMemory</h1>
             <p className="text-center text-gray-500 mb-8">Wähle ein Memory und finde die Paare!</p>
 
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-              <h2 className="text-lg font-semibold text-gray-700 mb-3">Memory importieren</h2>
-              <div
-                onClick={() => fileInput.current.click()}
-                className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500 cursor-pointer hover:border-blue-400 hover:text-gray-700 hover:bg-blue-50 transition-all"
-              >
-                📥 <b>Datei hierher ziehen</b><br />
-                <span className="text-sm text-gray-400">oder klicken zum Auswählen (.txt im F:/A:/---‑Format)</span>
-              </div>
-              <input
-                ref={fileInput} type="file" accept=".txt,.md" multiple className="hidden"
-                onChange={(e) => { importFiles(e.target.files); e.target.value = ''; }}
-              />
-              <p className="text-xs text-gray-400 mt-3">
-                Importierte Memories werden in diesem Browser gespeichert. Bewahre die Originaldatei
-                trotzdem auf — leert der Browser seinen Speicher, importierst du sie einfach wieder.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-              <h2 className="text-lg font-semibold text-gray-700 mb-3">Memory erstellen</h2>
-              <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mb-4">
-                <li>Kopiere den KI-Prompt (Button unten).</li>
-                <li>Füge ihn zusammen mit deinem Material (z.B. PDF) in ein KI-Tool wie <b>Claude</b> oder <b>ChatGPT</b> ein.</li>
-                <li>Die KI erstellt eine .txt-Datei mit den Paaren im Format <code className="bg-gray-100 px-1 rounded">F:</code> / <code className="bg-gray-100 px-1 rounded">A:</code> / <code className="bg-gray-100 px-1 rounded">---</code>.</li>
-                <li>Importiere die Datei zuoberst unter «Memory importieren».</li>
-              </ol>
+            <div className="bg-white rounded-lg shadow-lg mb-8">
               <button
-                onClick={() => copyText(KI_PROMPT, 'KI-Prompt kopiert!')}
-                className={`w-full ${BTN_PRIMARY} px-4 py-2`}
+                onClick={() => setCreateOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
               >
-                KI-Prompt kopieren
+                <h2 className="text-lg font-semibold text-gray-700">Memory erstellen</h2>
+                <span className={`text-gray-400 transition-transform ${createOpen ? 'rotate-90' : ''}`}>▶</span>
               </button>
+              {createOpen && (
+                <div className="px-6 pb-6">
+                  <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mb-4">
+                    <li>Kopiere den KI-Prompt (Button unten).</li>
+                    <li>Füge ihn zusammen mit deinem Material (z.B. PDF) in ein KI-Tool wie <b>Claude</b> oder <b>ChatGPT</b> ein.</li>
+                    <li>Die KI erstellt eine .txt-Datei mit den Paaren im Format <code className="bg-gray-100 px-1 rounded">F:</code> / <code className="bg-gray-100 px-1 rounded">A:</code> / <code className="bg-gray-100 px-1 rounded">---</code>.</li>
+                    <li>Ziehe die Datei unten in die Ablage-Fläche — oder kopiere den Text direkt ins Feld darunter.</li>
+                  </ol>
+                  <button
+                    onClick={() => copyText(KI_PROMPT, 'KI-Prompt kopiert!')}
+                    className={`w-full ${BTN_PRIMARY} px-4 py-2 mb-6`}
+                  >
+                    KI-Prompt kopieren
+                  </button>
+                  <div
+                    onClick={() => fileInput.current.click()}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500 cursor-pointer hover:border-blue-400 hover:text-gray-700 hover:bg-blue-50 transition-all"
+                  >
+                    📥 <b>Datei hierher ziehen</b><br />
+                    <span className="text-sm text-gray-400">oder klicken zum Auswählen (.txt im F:/A:/---‑Format)</span>
+                  </div>
+                  <input
+                    ref={fileInput} type="file" accept=".txt,.md" multiple className="hidden"
+                    onChange={(e) => { importFiles(e.target.files); e.target.value = ''; }}
+                  />
+                  <div className="flex items-center gap-3 my-4 text-xs uppercase tracking-wide text-gray-400">
+                    <span className="flex-1 h-px bg-gray-200" /> oder Text einfügen <span className="flex-1 h-px bg-gray-200" />
+                  </div>
+                  <input
+                    type="text" value={pastedTitle} onChange={(e) => setPastedTitle(e.target.value)}
+                    placeholder="Titel (z.B. Hauptstädte Europas)"
+                    className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+                  />
+                  <textarea
+                    value={pasted} onChange={(e) => setPasted(e.target.value)} rows={5}
+                    placeholder={'F: Hauptstadt der Schweiz\nA: Bern\n---'}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:border-blue-400"
+                  />
+                  <button
+                    onClick={importPasted}
+                    disabled={!pasted.trim()}
+                    className={`w-full mt-2 px-4 py-2 rounded-lg font-semibold transition-all ${pasted.trim() ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                  >
+                    Text importieren
+                  </button>
+                  <p className="text-xs text-gray-400 mt-3">
+                    Importierte Memories werden in diesem Browser gespeichert. Bewahre die Originaldatei
+                    trotzdem auf — leert der Browser seinen Speicher, importierst du sie einfach wieder.
+                  </p>
+                </div>
+              )}
             </div>
 
-            {own.length > 0 && (
-              <div className="mb-8">
-                <h2 className="text-lg font-semibold text-gray-600 mb-3">Meine Memories</h2>
-                {own.map((m) => row(m, true))}
-                <p className="text-xs text-gray-400 mt-1">
-                  Gespeichert in diesem Browser. Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze Memory.
-                </p>
+            <div className="mb-8">
+              <div className="flex items-center gap-2 mb-3">
+                <h2 className="text-lg font-semibold text-gray-600 flex-1">Meine Memories</h2>
+                <IconButton onClick={() => onNew('')} title="Neues Memory">➕</IconButton>
+                <IconButton onClick={() => newFolder('')} title="Neuer Ordner">📁</IconButton>
               </div>
-            )}
+              {/* Die Liste selbst ist der Hauptordner: was hierher gezogen wird, liegt in keinem Ordner */}
+              <div
+                {...dropProps('')}
+                className={`min-h-[3rem] rounded-lg border-2 transition-colors ${dropDir === '' ? 'border-blue-400 bg-blue-50/60' : 'border-transparent'}`}
+              >
+                {own.length || folders.length ? treeOf('') : (
+                  <p className="text-sm text-gray-400 px-1 py-3">
+                    Noch nichts da — oben ein Memory erstellen oder eine Datei hierher ziehen.
+                  </p>
+                )}
+              </div>
+              {own.length > 0 && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Gespeichert in diesem Browser. Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze
+                  Memory. Memories und Ordner lassen sich per Ziehen umhängen.
+                </p>
+              )}
+            </div>
 
             <div className="mb-8">
               <h2 className="text-lg font-semibold text-gray-600 mb-3">Beispiele</h2>
@@ -430,6 +722,7 @@
             </div>
           </div>
 
+          {dialog && <AskModal dialog={dialog} onClose={() => setDialog(null)} />}
           {qr && (
             <QrModal
               title={qr.title} url={qr.url}
@@ -442,6 +735,156 @@
               {toast}
             </div>
           )}
+        </div>
+      );
+    };
+
+    // ---------- Editor: Titel, Ordner und Paare bearbeiten ----------
+    // Gearbeitet wird auf einer Kopie; erst «Speichern» schreibt sie zurück.
+    const MemoryEditor = ({ memory, memories, folders, onSave, onCancel, onNewFolder }) => {
+      const [title, setTitle] = useState(memory.title);
+      const [dir, setDir] = useState(memory.dir || '');
+      const [pairs, setPairs] = useState(() =>
+        memory.pairs.length ? memory.pairs.map((p) => ({ ...p })) : [{ question: '', answer: '' }]);
+      const [error, setError] = useState('');
+      const [dialog, setDialog] = useState(null); // s. AskModal
+
+      const snapshot = JSON.stringify({ title, dir, pairs });
+      const [openSnapshot] = useState(snapshot); // Stand beim Öffnen — für die Rückfrage beim Abbrechen
+
+      const setPair = (i, key, value) =>
+        setPairs((ps) => ps.map((p, j) => (j === i ? { ...p, [key]: value } : p)));
+      const addPair = () => setPairs((ps) => [...ps, { question: '', answer: '' }]);
+      const removePair = (i) => setPairs((ps) => ps.filter((_, j) => j !== i));
+      const movePair = (i, delta) => setPairs((ps) => {
+        const j = i + delta;
+        if (j < 0 || j >= ps.length) return ps;
+        const next = [...ps];
+        [next[i], next[j]] = [next[j], next[i]];
+        return next;
+      });
+
+      // Jede Rückseite darf nur zu genau einer Vorderseite passen — sonst ist im
+      // Spiel nicht entscheidbar, welches Paar gemeint war.
+      const answers = pairs.map((p) => p.answer.trim()).filter(Boolean);
+      const duplicate = answers.find((a, i) => answers.indexOf(a) !== i);
+
+      const save = () => {
+        const clean = pairs
+          .map((p) => ({ question: p.question.trim(), answer: p.answer.trim() }))
+          .filter((p) => p.question || p.answer);
+        const name = title.trim();
+        if (!name) return setError('Der Titel fehlt.');
+        // Titel sind der Schlüssel beim Import (gleicher Titel = neue Version).
+        // Zwei gleichnamige Memories würden dort beide ersetzt — gar nicht erst
+        // entstehen lassen.
+        if (memories.some((m) => m.id !== memory.id && m.title === name)) {
+          return setError('Ein Memory mit diesem Titel gibt es schon.');
+        }
+        if (!clean.length) return setError('Mindestens ein Paar eintragen.');
+        if (clean.some((p) => !p.question || !p.answer)) return setError('Jedes Paar braucht Vorder- und Rückseite.');
+        onSave({ ...memory, title: name, dir, pairs: clean });
+      };
+
+      const cancel = () => {
+        // Ungespeicherte Arbeit nicht wortlos wegwerfen
+        if (snapshot === openSnapshot) return onCancel();
+        setDialog({ kind: 'confirm', ok: 'Verwerfen', text: 'Änderungen verwerfen?', onYes: onCancel });
+      };
+
+      const newFolder = () => setDialog({
+        kind: 'prompt', ok: 'Anlegen',
+        label: dir ? `Name des Unterordners in «${dirName(dir)}»:` : 'Name des neuen Ordners:',
+        onOk: (name) => { const path = onNewFolder(dir, name); if (path) setDir(path); },
+      });
+
+      // Vorschau nur, wo sie etwas zeigt, das im Feld nicht steht (LaTeX)
+      const preview = (text) => text.includes('$') && (
+        <div className="mt-1 text-sm text-gray-500"><MathRenderer content={text} /></div>
+      );
+
+      const field = (i, key, label, placeholder) => (
+        <label className="block">
+          <span className="text-xs uppercase tracking-wide text-gray-400">{label}</span>
+          <input
+            type="text" value={pairs[i][key]} placeholder={placeholder}
+            onChange={(e) => setPair(i, key, e.target.value)}
+            className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+          />
+          {preview(pairs[i][key])}
+        </label>
+      );
+
+      return (
+        <div className={`${SCREEN} p-4 sm:p-8`}>
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-2xl font-bold text-gray-800 mb-6">
+              {memory.id ? 'Memory bearbeiten' : 'Neues Memory'}
+            </h1>
+
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+              <label className="block mb-4">
+                <span className="text-xs uppercase tracking-wide text-gray-400">Titel</span>
+                <input
+                  type="text" value={title} onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Titel des Memorys"
+                  className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+                />
+              </label>
+              <span className="text-xs uppercase tracking-wide text-gray-400">Ordner</span>
+              <div className="flex gap-2 mt-1">
+                <select
+                  value={dir} onChange={(e) => setDir(e.target.value)}
+                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-blue-400"
+                >
+                  <option value="">Hauptordner</option>
+                  {folders.map((f) => (
+                    <option key={f} value={f}>{'\u00a0\u00a0'.repeat(f.split('/').length - 1) + dirName(f)}</option>
+                  ))}
+                </select>
+                <IconButton onClick={newFolder} title="Ordner anlegen">📁</IconButton>
+              </div>
+            </div>
+
+            {pairs.map((pair, i) => (
+              <div key={i} className="bg-white rounded-lg shadow p-4 mb-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="flex-1 text-sm font-semibold text-gray-400">Paar {i + 1}</span>
+                  <IconButton onClick={() => movePair(i, -1)} title="Nach oben">↑</IconButton>
+                  <IconButton onClick={() => movePair(i, 1)} title="Nach unten">↓</IconButton>
+                  <IconButton onClick={() => removePair(i)} title="Paar löschen" hover="hover:bg-red-50">🗑️</IconButton>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {field(i, 'question', 'Vorderseite', 'z.B. $\\sqrt{169}$')}
+                  {field(i, 'answer', 'Rückseite', 'z.B. $13$')}
+                </div>
+              </div>
+            ))}
+
+            <button onClick={addPair} className="w-full px-4 py-2 mb-4 bg-white rounded-lg shadow hover:shadow-md font-semibold text-gray-600">
+              ➕ Paar hinzufügen
+            </button>
+
+            {duplicate && (
+              <p className="text-sm text-amber-600 mb-2">
+                Achtung: «{duplicate}» kommt mehrfach als Rückseite vor — im Spiel passt sie dann zu mehreren Karten.
+              </p>
+            )}
+            {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+
+            <div className="flex gap-3">
+              <button onClick={cancel} className="flex-1 px-4 py-3 bg-white rounded-lg shadow hover:shadow-md font-semibold text-gray-600">
+                Abbrechen
+              </button>
+              <button onClick={save} className={`flex-1 ${BTN_PRIMARY} px-4 py-3`}>
+                Speichern
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-3">
+              Kurz halten (max. ~40 Zeichen), damit es auf die Karte passt. LaTeX in <code className="bg-gray-100 px-1 rounded">$…$</code> wird gerendert.
+            </p>
+          </div>
+          {dialog && <AskModal dialog={dialog} onClose={() => setDialog(null)} />}
         </div>
       );
     };
@@ -667,7 +1110,9 @@
     // ---------- App ----------
     const App = () => {
       const [route, setRoute] = useState(getRoute);
-      const [own, setOwn] = useState(loadOwn);
+      const [store, setStore] = useState(loadStore);
+      const own = store.memories;
+      const folders = allFolders(store);
 
       useEffect(() => {
         const onHash = () => setRoute(getRoute());
@@ -676,31 +1121,107 @@
       }, []);
 
       const openMemory = (memory) => { location.hash = toHash(memory); };
+      const editMemory = (memory) => { location.hash = '#edit=' + memory.id; };
+      const newMemory = (dir) => { location.hash = '#new=' + encodeURIComponent(dir || ''); };
 
       // Ändern + speichern in einem Schritt; Funktions-Update, damit Handler
       // nie einen veralteten Stand einfangen (Drag&Drop-Listener läuft dauerhaft)
-      const updateOwn = (fn) => setOwn((prev) => {
+      const updateStore = (fn) => setStore((prev) => {
         const next = fn(prev);
-        saveOwn(next);
+        saveStore(next);
         return next;
       });
 
-      const importMemory = (memory) => updateOwn((prev) => {
-        // Gleicher Titel = neue Version desselben Memorys → ersetzen statt doppeln
-        const rest = prev.filter((m) => m.title !== memory.title);
-        return [...rest, memory].sort((a, b) => a.title.localeCompare(b.title, 'de'));
-      });
+      const putMemory = (memory, dropBy) => updateStore((prev) => ({
+        ...prev,
+        memories: [...prev.memories.filter(dropBy), memory].sort(byTitle),
+      }));
 
-      const deleteMemory = (id) => updateOwn((prev) => prev.filter((m) => m.id !== id));
+      // Gleicher Titel = neue Version desselben Memorys → ersetzen statt doppeln
+      const importMemory = (memory) => putMemory(memory, (m) => m.title !== memory.title);
+
+      const saveMemory = (memory) => {
+        const saved = memory.id ? memory : { ...memory, id: newId() };
+        putMemory(saved, (m) => m.id !== saved.id);
+        back();
+      };
+
+      const deleteMemory = (id) =>
+        updateStore((prev) => ({ ...prev, memories: prev.memories.filter((m) => m.id !== id) }));
+
+      // ---- Ordner verwalten ----
+      // Die Namen kommen aus den Dialogen (s. AskModal); '/' muss raus, das
+      // trennt hier die Ebenen.
+      const cleanName = (name) => (name || '').trim().replace(/\//g, '-');
+
+      const makeFolder = (parent, rawName) => {
+        const name = cleanName(rawName);
+        if (!name) return null;
+        const path = parent ? `${parent}/${name}` : name;
+        updateStore((prev) => (prev.folders.includes(path) ? prev : { ...prev, folders: [...prev.folders, path] }));
+        return path;
+      };
+
+      const renameFolder = (dir, rawName) => {
+        const name = cleanName(rawName);
+        if (!name) return null;
+        const target = parentDir(dir) ? `${parentDir(dir)}/${name}` : name;
+        if (target === dir) return null;
+        updateStore((prev) => remapDir(prev, dir, target));
+        return target;
+      };
+
+      const moveFolder = (dir, parent) => {
+        const target = parent ? `${parent}/${dirName(dir)}` : dirName(dir);
+        updateStore((prev) => remapDir(prev, dir, target));
+        return target;
+      };
+
+      const removeFolder = (dir) =>
+        updateStore((prev) => ({ ...prev, folders: prev.folders.filter((f) => f !== dir) }));
+
+      const moveMemory = (id, dir) => updateStore((prev) => ({
+        ...prev,
+        memories: prev.memories.map((m) => (m.id === id ? { ...m, dir } : m)),
+      }));
+
+      const folderApi = { makeFolder, renameFolder, moveFolder, removeFolder, moveMemory };
 
       const back = () => {
         history.replaceState(null, '', location.pathname);
         setRoute(null);
       };
 
+      if (route && (route.type === 'edit' || route.type === 'new')) {
+        const target = route.type === 'new'
+          ? { id: null, title: '', dir: route.dir, pairs: [] }
+          : own.find((m) => m.id === route.id);
+        if (!target) {
+          return (
+            <div className={`${SCREEN} p-8 text-center text-gray-500`}>
+              Dieses Memory gibt es nicht (mehr).
+              <button onClick={back} className="block mx-auto mt-4 underline">Zurück zur Auswahl</button>
+            </div>
+          );
+        }
+        return (
+          <MemoryEditor
+            key={route.type === 'new' ? 'new' : route.id}
+            memory={target} memories={own} folders={folders}
+            onSave={saveMemory} onCancel={back} onNewFolder={makeFolder}
+          />
+        );
+      }
+
       return route
         ? <Game key={JSON.stringify(route)} route={route} own={own} onBack={back} />
-        : <Selection own={own} onOpen={openMemory} onImport={importMemory} onDelete={deleteMemory} />;
+        : (
+          <Selection
+            own={own} folders={folders}
+            onOpen={openMemory} onEdit={editMemory} onNew={newMemory}
+            onImport={importMemory} onDelete={deleteMemory} folderApi={folderApi}
+          />
+        );
     };
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
