@@ -77,6 +77,18 @@ das Raster passt sich der Anzahl an.
   direkt auf einen Ordner gezogen wird gleich dort importiert.
 - Welche Ordner offen sind, merkt sich der Browser.
 
+## Namen der Spielenden
+
+Im Spiel auf **„Spieler 1"** bzw. **„Spieler 2"** tippen — der Name wird zum
+Eingabefeld, Enter (oder ein Klick daneben) übernimmt ihn, Esc verwirft. Das
+geht vor dem ersten Zug und mitten im Spiel. Der Name steht danach auch im
+Schlussbildschirm („Lea gewinnt! 🎉").
+
+Leeres Feld heisst wieder „Spieler 1/2" (und folgt dann der Sprache). Die Namen
+bleiben im Browser dieses einen Spiels: „Nochmal spielen" behält sie, der Weg
+über „Übersicht" setzt sie zurück. Geteilt werden sie nie — sie stecken weder im
+Memory noch im Link.
+
 ## Exportieren
 
 - Der **Pfeil nach unten** neben einem Memory lädt es als `.txt` herunter —

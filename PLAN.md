@@ -38,6 +38,13 @@ Dazugekommen:
   das Format kennt. Den KI-Prompt gibt es in beiden Sprachen, die Sprache des
   Memorys steht im Ausfüll-Block. Übersetzt wird nur die Oberfläche, nie der
   Inhalt — auch die Beispiele bleiben deutsch.
+- **Spielernamen**: «Spieler 1/2» in der Kopfzeile ist anklickbar und wird zum
+  Eingabefeld — vor dem ersten Zug oder mitten im Spiel; kein Startdialog davor,
+  damit der Weg über Direktlink/QR ohne Hürde ins Spiel führt. Leer = wieder der
+  Standardname, der so auch der Sprache folgt; max. 14 Zeichen wegen der
+  Kopfzeile auf dem Handy. Die Namen leben nur in der Spielkomponente: «Nochmal
+  spielen» behält sie, der Weg über die Übersicht räumt sie ab. Weder im Memory
+  noch im Link.
 - **Symbole** als einfache 2D-Strichzeichnungen (SVG) statt Emoji — die kamen je
   nach System als bunte 3D-Bildchen.
 

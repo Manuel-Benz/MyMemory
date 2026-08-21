@@ -164,8 +164,8 @@
         player2: 'Spieler 2',
         newGame: 'Neues Spiel',
         gameOver: 'Spiel beendet!',
-        p1Wins: 'Spieler 1 gewinnt! 🎉',
-        p2Wins: 'Spieler 2 gewinnt! 🎉',
+        editName: 'Name ändern',
+        wins: (name) => `${name} gewinnt! 🎉`,
         draw: 'Unentschieden! 🤝',
         playAgain: 'Nochmal spielen',
         loading: 'Lade Memory…',
@@ -270,8 +270,8 @@
         player2: 'Player 2',
         newGame: 'New game',
         gameOver: 'Game over!',
-        p1Wins: 'Player 1 wins! 🎉',
-        p2Wins: 'Player 2 wins! 🎉',
+        editName: 'Change name',
+        wins: (name) => `${name} wins! 🎉`,
         draw: "It's a draw! 🤝",
         playAgain: 'Play again',
         loading: 'Loading memory…',
@@ -1568,6 +1568,44 @@
       );
     };
 
+    // ---------- Spielernamen ----------
+    // Rein lokal: die Namen stehen weder im Memory noch im geteilten Link.
+    // Ein Klick auf «Spieler 1» macht daraus ein Eingabefeld — vor dem ersten
+    // Zug oder mitten im Spiel. Leer heisst wieder der Standardname, der so
+    // auch der Sprachumschaltung folgt.
+    // Mehr Zeichen sprengen die Kopfzeile auf dem Handy.
+    const NAME_MAX = 14;
+
+    const PlayerName = ({ name, fallback, onChange }) => {
+      const [editing, setEditing] = useState(false);
+      const [value, setValue] = useState('');
+      const save = () => { onChange(value.trim()); setEditing(false); };
+
+      if (editing) {
+        return (
+          <input
+            autoFocus type="text" value={value} maxLength={NAME_MAX} placeholder={fallback}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={save}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') save();
+              if (e.key === 'Escape') setEditing(false);
+            }}
+            className="w-24 sm:w-40 px-2 py-0.5 text-lg font-semibold text-gray-700 text-center bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+          />
+        );
+      }
+      return (
+        <button
+          onClick={() => { setValue(name); setEditing(true); }}
+          title={t('editName')}
+          className="block mx-auto max-w-[6rem] sm:max-w-[10rem] truncate text-lg font-semibold text-gray-700 hover:text-gray-900 underline decoration-dotted decoration-gray-400 underline-offset-4"
+        >
+          {name || fallback}
+        </button>
+      );
+    };
+
     // ---------- Das Memory-Spiel ----------
     // Es werden immer ALLE Paare der Datei gespielt: Kachelzahl = 2 × Paare.
     const MemoryGame = ({ title, allPairs, onBack }) => {
@@ -1585,6 +1623,17 @@
       const [matchedPairs, setMatchedPairs] = useState([]);
       const [currentPlayer, setCurrentPlayer] = useState(1);
       const [scores, setScores] = useState({ player1: 0, player2: 0 });
+      // Leer = Standardname. Beim Verlassen des Spiels verschwinden die Namen
+      // von selbst (die Komponente wird abgeräumt), «Nochmal spielen» behält
+      // sie — dort sitzen ja dieselben zwei vor dem Bildschirm.
+      const [names, setNames] = useState({ 1: '', 2: '' });
+      const nameOf = (n) => names[n] || t(`player${n}`);
+      const nameField = (n) => (
+        <PlayerName
+          name={names[n]} fallback={t(`player${n}`)}
+          onChange={(v) => setNames((prev) => ({ ...prev, [n]: v }))}
+        />
+      );
       const [isChecking, setIsChecking] = useState(false);
       const [settingsButton, settingsPanel] = useSettings();
 
@@ -1677,11 +1726,11 @@
             <div className={`${CARD} p-6 mb-8`}>
               <div className="flex justify-around items-center">
                 <div className={`text-center p-4 rounded-lg transition-all ${currentPlayer === 1 && !isGameComplete ? 'bg-red-100 ring-2 ring-red-500' : 'bg-gray-50'}`}>
-                  <div className="text-lg font-semibold text-gray-700">{t('player1')}</div>
+                  {nameField(1)}
                   <div className="text-3xl font-bold text-red-600">{scores.player1}</div>
                 </div>
                 <div className={`text-center p-4 rounded-lg transition-all ${currentPlayer === 2 && !isGameComplete ? 'bg-blue-100 ring-2 ring-blue-500' : 'bg-gray-50'}`}>
-                  <div className="text-lg font-semibold text-gray-700">{t('player2')}</div>
+                  {nameField(2)}
                   <div className="text-3xl font-bold text-blue-600">{scores.player2}</div>
                 </div>
               </div>
@@ -1735,20 +1784,20 @@
                   <h2 className="text-3xl font-bold text-center mb-4">{t('gameOver')}</h2>
                   <div className="text-center mb-6">
                     {scores.player1 > scores.player2 ? (
-                      <div className="text-2xl text-red-600 font-bold">{t('p1Wins')}</div>
+                      <div className="text-2xl text-red-600 font-bold">{t('wins', nameOf(1))}</div>
                     ) : scores.player2 > scores.player1 ? (
-                      <div className="text-2xl text-blue-600 font-bold">{t('p2Wins')}</div>
+                      <div className="text-2xl text-blue-600 font-bold">{t('wins', nameOf(2))}</div>
                     ) : (
                       <div className="text-2xl text-gray-600 font-bold">{t('draw')}</div>
                     )}
                   </div>
                   <div className="flex justify-around mb-6">
                     <div className="text-center">
-                      <div className="text-gray-600">{t('player1')}</div>
+                      <div className="text-gray-600 break-words">{nameOf(1)}</div>
                       <div className="text-4xl font-bold text-red-600">{scores.player1}</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-gray-600">{t('player2')}</div>
+                      <div className="text-gray-600 break-words">{nameOf(2)}</div>
                       <div className="text-4xl font-bold text-blue-600">{scores.player2}</div>
                     </div>
                   </div>
