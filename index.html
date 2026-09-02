@@ -107,6 +107,7 @@
         edit: 'Bearbeiten',
         del: 'Löschen',
         linkCopied: 'Direktlink kopiert!',
+        copyFailed: 'Kopieren hat nicht geklappt — bitte den Link von Hand kopieren.',
         downloadedOne: (title) => `«${title}» heruntergeladen`,
         downloadedAll: (n) => `${n} ${n === 1 ? 'Memory' : 'Memories'} heruntergeladen`,
         noOwnMemories: 'Noch keine eigenen Memories da',
@@ -137,6 +138,9 @@
         folderLabel: 'Ordner',
         rootFolder: 'Hauptordner',
         makeFolder: 'Ordner anlegen',
+        gameLangLabel: 'Sprache im Spiel',
+        gameLangDefault: 'Wie in den Einstellungen',
+        gameLangHint: 'Knöpfe und Meldungen beim Spielen — gilt auch für Direktlink und QR-Code, die Klasse kann trotzdem umschalten.',
         pairN: (n) => `Paar ${n}`,
         moveUp: 'Nach oben',
         moveDown: 'Nach unten',
@@ -216,6 +220,7 @@
         edit: 'Edit',
         del: 'Delete',
         linkCopied: 'Direct link copied!',
+        copyFailed: 'Copying did not work — please copy the link by hand.',
         downloadedOne: (title) => `“${title}” downloaded`,
         downloadedAll: (n) => `${n} ${n === 1 ? 'memory' : 'memories'} downloaded`,
         noOwnMemories: 'No memories of your own yet',
@@ -244,6 +249,9 @@
         folderLabel: 'Folder',
         rootFolder: 'Main folder',
         makeFolder: 'Create folder',
+        gameLangLabel: 'Language in the game',
+        gameLangDefault: 'As set in Settings',
+        gameLangHint: 'Buttons and messages while playing — also for direct link and QR code; the class can still switch.',
         pairN: (n) => `Pair ${n}`,
         moveUp: 'Move up',
         moveDown: 'Move down',
@@ -352,12 +360,17 @@
       "SO GIBST DU ES AUS — daran scheitert es sonst:",
       "- Gib beides aus, in dieser Reihenfolge:",
       "  1. eine Datei zum Herunterladen, Endung .txt (kein .docx, kein PDF). Der",
-      "     Dateiname ohne .txt wird zum Titel des Memorys — also kurz und passend wählen.",
+      "     Dateiname beginnt mit «Memory_», danach folgt der Titel des Memorys —",
+      "     kurz und passend, Wörter mit «_» getrennt: Memory_Hauptstaedte_Europas.txt",
+      "     Erste Zeile der Datei: «Sprache: de» oder «Sprache: en» — je nach Sprache",
+      "     des Memorys oben (bei einer anderen Sprache die Zeile weglassen).",
       "  2. denselben Inhalt nochmals in EINEM Code-Block (```), zum Kopieren.",
       "- Kannst du keine Dateien erzeugen, reicht der Code-Block allein.",
       "- Kein Wort davor oder danach: keine Einleitung, keine Erklärung, keine Rückfrage.",
       "",
       "FORMAT (genau so):",
+      "",
+      "Sprache: de",
       "",
       "F: Hauptstadt der Schweiz",
       "A: Bern",
@@ -410,12 +423,17 @@
       "HOW TO OUTPUT IT — this is where it usually goes wrong:",
       "- Give both, in this order:",
       "  1. a file to download, extension .txt (no .docx, no PDF). The file name",
-      "     without .txt becomes the title of the memory — keep it short and fitting.",
+      "     starts with «Memory_», followed by the title of the memory — short and",
+      "     fitting, words separated by «_»: Memory_Capitals_of_Europe.txt",
+      "     First line of the file: «Language: en» or «Language: de» — matching the",
+      "     language of the memory given above (omit the line for any other language).",
       "  2. the same content again in ONE code block (```), to copy.",
       "- If you cannot produce files, the code block alone is enough.",
       "- Not a word before or after: no introduction, no explanation, no follow-up question.",
       "",
       "FORMAT (exactly like this):",
+      "",
+      "Language: en",
       "",
       "F: Capital of Switzerland",
       "A: Bern",
@@ -486,15 +504,31 @@
     };
 
     const parseFile = (text, filename) => {
-      const fromName = filename.replace(/\.(txt|md)$/i, '').replace(/_/g, ' ').trim();
+      // Der KI-Prompt verlangt Dateinamen wie «Memory_Thema.txt»: das Präfix
+      // hilft beim Wiederfinden im Download-Ordner, gehört aber nicht in den
+      // Titel. Nur mit Unterstrich — «Memory Vokabeln.txt» heisst wirklich so.
+      const fromName = filename.replace(/\.(txt|md)$/i, '').replace(/^memory_+(?=.)/i, '').replace(/_/g, ' ').trim();
+      const lang = langInFile(text);
       if (/^##\s/m.test(text)) {
         const { title, pairs } = parseMd(text);
-        return { title: title || fromName, pairs };
+        return { title: title || fromName, pairs, lang };
       }
       // Steht ein «# Titel» in der Datei, gilt der: nur so überlebt ein Titel den
       // Weg Export → Import unverändert (der Dateiname verliert z.B. «_» und «:»).
       const inFile = text.match(/^#\s+(.+)$/m);
-      return { title: (inFile && inFile[1].trim()) || fromName, pairs: parseFA(text) };
+      return { title: (inFile && inFile[1].trim()) || fromName, pairs: parseFA(text), lang };
+    };
+
+    // «Sprache: en» / «Language: de» in der Datei (der KI-Prompt verlangt die
+    // Zeile, der Export schreibt sie): die Sprache der Oberfläche im Spiel.
+    // Grosszügig gelesen — die KI schreibt auch mal «Englisch» oder «German».
+    const langInFile = (text) => {
+      const m = text.match(/^(?:sprache|language)\s*:\s*([a-z]+)/im);
+      const word = m && m[1].toLowerCase();
+      if (!word) return undefined;
+      if (word.startsWith('de') || word.startsWith('ge')) return 'de';
+      if (word.startsWith('en')) return 'en';
+      return undefined;
     };
 
     // ---------- Dateien schreiben (Export) ----------
@@ -503,7 +537,8 @@
     // Import zurück, und MyTafelfussball überspringt die Zeile (sie steht vor
     // der ersten «F: »-Zeile und wird dort keiner Aufgabe zugeschlagen).
     const toFile = (memory) =>
-      `# ${memory.title}\n\n` +
+      `# ${memory.title}\n` +
+      (memory.lang ? `${memory.lang === 'en' ? 'Language' : 'Sprache'}: ${memory.lang}\n` : '') + '\n' +
       memory.pairs.map((p) => `F: ${p.question}\nA: ${p.answer}\n---`).join('\n') + '\n';
 
     // Dateiname aus dem Titel — was Dateisysteme stört, wird zum Bindestrich.
@@ -649,17 +684,31 @@
     // immer nur der erste Teil, der keine Sprache ist. Zusammengesetzt statt per
     // Textersatz — sonst bliebe `#l=en` (Sprache zuvorderst) stehen und die Wahl
     // wäre nach dem Neuladen wieder weg.
-    const withLang = (hash) => `${hash}${hash.endsWith('#') ? '' : '&'}l=${currentLang}`;
+    // Ein Memory kann seine eigene Sprache haben (memory.lang): dann trägt
+    // sein Link diese statt der gerade eingestellten — die Klasse landet so
+    // automatisch in der Sprache der Fragen. `undefined` heisst «wie eingestellt».
+    const withLang = (hash, lang = currentLang) => `${hash}${hash.endsWith('#') ? '' : '&'}l=${lang || currentLang}`;
     const routePart = () => hashParts().find((x) => !x.startsWith('l=')) || '';
 
-    // Sprache umschalten: merken, neu zeichnen, und wenn sie im Link steht, dort
-    // mitziehen — sonst käme beim Neuladen die alte zurück. Safari begrenzt
-    // replaceState, darum darf das scheitern.
-    const changeLang = (id) => {
+    // Sprache von Hand umschalten: merken, neu zeichnen, und wenn sie im Link
+    // steht, dort mitziehen — sonst käme beim Neuladen die alte zurück. Safari
+    // begrenzt replaceState, darum darf das scheitern.
+    // Einzige Stelle, die die angezeigte Sprache wechselt. Gleiche Sprache =
+    // nichts tun, sonst zeichnete jeder Hash-Wechsel die Seite unnötig neu.
+    const applyLang = (id) => {
+      if (id === currentLang) return;
       currentLang = id;
       document.documentElement.lang = id;
-      writeLocal(LANG_KEY, id);
       redrawLang(id);
+    };
+    // Ein Link oder Memory bringt seine eigene Sprache mit; verlässt man ihn,
+    // gilt wieder die gemerkte Wahl. Die steht schon in LANG_KEY — ein zweites
+    // Gedächtnis daneben wäre bloss eine weitere Stelle zum Vergessen (und nach
+    // einem Neuladen leer, worauf die Übersicht in der Link-Sprache hängenbliebe).
+    const restoreLang = () => applyLang(loadLang());
+    const changeLang = (id) => {
+      writeLocal(LANG_KEY, id);
+      applyLang(id);
       if (langFromHash()) {
         try {
           const url = location.pathname + location.search + withLang('#' + routePart());
@@ -669,13 +718,13 @@
     };
 
     const toHash = (memory) =>
-      withLang(demoById(memory.id) ? '#demo=' + memory.id : '#local=' + memory.id);
+      withLang(demoById(memory.id) ? '#demo=' + memory.id : '#local=' + memory.id, memory.lang);
 
     const directLink = async (memory) => {
       const base = location.origin + location.pathname;
       return demoById(memory.id)
         ? base + toHash(memory)
-        : withLang(`${base}#m=${await encodeMemory(memory)}`);
+        : withLang(`${base}#m=${await encodeMemory(memory)}`, memory.lang);
     };
 
     // Ein von Hand verunstaltetes Fragment (#new=%zz) darf die App nicht
@@ -748,6 +797,8 @@
     const FONT_STEPS = [24, 22, 20, 18, 16, 14];
     const FONT_STEPS_SM = [18, 16, 14, 12, 11, 10];
     const SMALL_SCREEN = window.matchMedia('(max-width: 640px)');
+    // Welche Leiter gerade gilt — gefragt beim Messen und für die Grösse davor.
+    const fontSteps = () => (SMALL_SCREEN.matches ? FONT_STEPS_SM : FONT_STEPS);
 
     // Gemessen wird nicht jede Karte für sich, sondern alle Inhalte zusammen:
     // der längste bestimmt die Stufe für das ganze Spielfeld. So sind alle
@@ -783,7 +834,7 @@
 
           const els = Array.from(probe.children);
           els.forEach(el => { el.style.maxWidth = `${availW}px`; });
-          const steps = SMALL_SCREEN.matches ? FONT_STEPS_SM : FONT_STEPS;
+          const steps = fontSteps();
           const setStep = (step) => els.forEach(el => { el.style.fontSize = `${step}px`; });
           const fits = (el) => el.scrollWidth <= availW && el.scrollHeight <= availH;
 
@@ -862,7 +913,7 @@
       ), [key]);
       // Der Aufrufer fragt nur nach dem Inhalt; wie die Grösse zustande kommt,
       // bleibt hier drin. Vor der ersten Messung gilt die oberste Stufe.
-      const sizeFor = (content) => sizes.get(content) || FONT_STEPS[0];
+      const sizeFor = (content) => sizes.get(content) || fontSteps()[0];
       return [sizeFor, probe];
     };
 
@@ -878,6 +929,7 @@
     const BTN_SECONDARY = 'bg-gray-100 text-gray-600 rounded-lg font-semibold hover:bg-gray-200 transition-all';
     const CARD = 'bg-white rounded-lg shadow-lg';
     const LABEL = 'text-xs uppercase tracking-wide text-gray-400';
+    const INPUT = 'px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-blue-400';
 
     const Modal = ({ children, onClose }) => (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -1075,13 +1127,22 @@
       const [pastedTitle, setPastedTitle] = useState('');
       const fileInput = useRef(null);
 
+      const toastTimer = useRef(0);
       const showToast = (msg) => {
         setToast(msg);
-        setTimeout(() => setToast(null), 2500);
+        clearTimeout(toastTimer.current); // sonst räumt der Timer der ersten Meldung die zweite ab
+        toastTimer.current = setTimeout(() => setToast(null), 2500);
       };
 
-      const copyText = (text, msg) =>
-        navigator.clipboard.writeText(text).then(() => showToast(msg));
+      // Die Zwischenablage kann fehlen (ohne HTTPS) oder ablehnen (Safari, wenn
+      // zwischen Klick und Kopieren etwas dazwischenkam). Beides endet hier,
+      // statt stillschweigend nichts zu tun — der Link steht ja im QR-Fenster.
+      const copyText = async (text, msg) => {
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast(msg);
+        } catch { showToast(t('copyFailed')); }
+      };
 
       const copyLink = async (memory) => copyText(await directLink(memory), t('linkCopied'));
       const showQr = async (memory) => setQr({ title: memory.title, url: await directLink(memory) });
@@ -1106,14 +1167,19 @@
 
       // Einziger Weg von Text zu Memory — Datei und Einfügefeld teilen ihn sich
       const addImported = (text, name, dir, complain) => {
-        const { title, pairs } = parseFile(text, name);
+        const { title, pairs, lang } = parseFile(text, name);
         if (!pairs.length) { showToast(complain); return false; }
-        onImport({ id: newId(), title, pairs, dir });
+        // Nur mitgeben, was wirklich bekannt ist: fehlende Felder sollen beim
+        // Ersetzen den alten Stand nicht mit «undefined» überschreiben.
+        onImport({ id: newId(), title, pairs, ...(dir === undefined ? {} : { dir }), ...(lang ? { lang } : {}) });
         showToast(t('imported', title, pairs.length));
         return true;
       };
 
-      const importFiles = (fileList, dir = '') => {
+      // `dir` bleibt undefined, wenn niemand ein Ziel genannt hat (Datei aufs
+      // Fenster gezogen, über den Knopf gewählt); '' ist der Hauptordner und
+      // damit eine ebenso gezielte Ansage wie jeder andere Ordner.
+      const importFiles = (fileList, dir) => {
         for (const file of fileList) {
           file.text().then((text) =>
             addImported(text, file.name, dir, t('noPairsInFile', file.name)));
@@ -1121,7 +1187,7 @@
       };
 
       const importPasted = () => {
-        const done = addImported(pasted, pastedTitle.trim() || 'Memory', '', t('noPairsFound'));
+        const done = addImported(pasted, pastedTitle.trim() || 'Memory', undefined, t('noPairsFound'));
         if (!done) return;
         setPasted('');
         setPastedTitle('');
@@ -1256,6 +1322,9 @@
             className="flex-1 min-w-0 truncate text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all font-semibold text-gray-800"
           >
             {memory.title}
+            {memory.lang && (
+              <span className="ml-2 px-1.5 rounded bg-gray-100 text-xs font-semibold text-gray-500 uppercase align-middle">{memory.lang}</span>
+            )}
             <span className="ml-2 text-sm font-normal text-gray-400">{t('nPairs', memory.pairs.length)}</span>
           </button>
           <IconButton onClick={() => exportOne(memory)} title={t('exportOne')} extra="hidden sm:block"><DownloadIcon /></IconButton>
@@ -1427,12 +1496,13 @@
     const MemoryEditor = ({ memory, memories, folders, onSave, onCancel, onNewFolder }) => {
       const [title, setTitle] = useState(memory.title);
       const [dir, setDir] = useState(memory.dir || '');
+      const [lang, setLang] = useState(memory.lang || ''); // '' = wie eingestellt
       const [pairs, setPairs] = useState(() =>
         memory.pairs.length ? memory.pairs.map((p) => ({ ...p })) : [{ question: '', answer: '' }]);
       const [error, setError] = useState('');
       const [dialog, setDialog] = useState(null); // s. AskModal
 
-      const snapshot = JSON.stringify({ title, dir, pairs });
+      const snapshot = JSON.stringify({ title, dir, lang, pairs });
       const [openSnapshot] = useState(snapshot); // Stand beim Öffnen — für die Rückfrage beim Abbrechen
 
       const setPair = (i, key, value) =>
@@ -1466,7 +1536,7 @@
         }
         if (!clean.length) return setError(t('errNoPair'));
         if (clean.some((p) => !p.question || !p.answer)) return setError(t('errHalfPair'));
-        onSave({ ...memory, title: name, dir, pairs: clean });
+        onSave({ ...memory, title: name, dir, pairs: clean, lang: lang || undefined });
       };
 
       const cancel = () => {
@@ -1492,7 +1562,7 @@
           <input
             type="text" value={pairs[i][key]} placeholder={placeholder}
             onChange={(e) => setPair(i, key, e.target.value)}
-            className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+            className={`w-full mt-1 ${INPUT}`}
           />
           {preview(pairs[i][key])}
         </label>
@@ -1511,14 +1581,14 @@
                 <input
                   type="text" value={title} onChange={(e) => setTitle(e.target.value)}
                   placeholder={t('titlePh')}
-                  className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+                  className={`w-full mt-1 ${INPUT}`}
                 />
               </label>
               <span className={LABEL}>{t('folderLabel')}</span>
               <div className="flex gap-2 mt-1">
                 <select
                   value={dir} onChange={(e) => setDir(e.target.value)}
-                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-blue-400"
+                  className={`flex-1 min-w-0 ${INPUT}`}
                 >
                   <option value="">{t('rootFolder')}</option>
                   {folders.map((f) => (
@@ -1527,6 +1597,17 @@
                 </select>
                 <IconButton onClick={newFolder} title={t('makeFolder')}><FolderIcon /></IconButton>
               </div>
+              <label className="block mt-4">
+                <span className={LABEL}>{t('gameLangLabel')}</span>
+                <select
+                  value={lang} onChange={(e) => setLang(e.target.value)}
+                  className={`w-full mt-1 ${INPUT}`}
+                >
+                  <option value="">{t('gameLangDefault')}</option>
+                  {LANGS.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
+                </select>
+                <span className="block mt-1 text-sm text-gray-500">{t('gameLangHint')}</span>
+              </label>
             </div>
 
             {pairs.map((pair, i) => (
@@ -1653,34 +1734,38 @@
       const cols = cardCount <= 16 ? colsFor(cardCount, [4, 3, 5, 6], 4) : colsFor(cardCount, [6, 5, 4], 6);
       const colsSm = colsFor(cardCount, [3, 4], 4);
 
-      // Prüfen ob zwei aufgedeckte Karten ein Paar bilden
+      // Prüfen ob zwei aufgedeckte Karten ein Paar bilden. Der Timer hängt am
+      // Effekt: «Neues Spiel» und das Verlassen räumen die aufgedeckten Karten
+      // ab, damit läuft das Aufräumen und bricht ihn ab — sonst feuerte er ins
+      // neue Spiel und verteilte dort Punkte oder den Zug.
       useEffect(() => {
-        if (flippedCards.length === 2) {
-          setIsChecking(true);
-          const [first, second] = flippedCards;
-          const firstCard = cards.find(c => c.id === first);
-          const secondCard = cards.find(c => c.id === second);
+        if (flippedCards.length !== 2) return;
+        setIsChecking(true);
+        const [first, second] = flippedCards;
+        const firstCard = cards.find(c => c.id === first);
+        const secondCard = cards.find(c => c.id === second);
+        let timer;
 
-          if (firstCard.pairId === secondCard.pairId) {
-            // Paar gefunden!
-            setTimeout(() => {
-              setMatchedPairs(prev => [...prev, firstCard.pairId]);
-              setScores(prev => ({
-                ...prev,
-                [`player${currentPlayer}`]: prev[`player${currentPlayer}`] + 1
-              }));
-              setFlippedCards([]);
-              setIsChecking(false);
-            }, 1000);
-          } else {
-            // Kein Paar - Karten wieder umdrehen und Spieler wechseln
-            setTimeout(() => {
-              setFlippedCards([]);
-              setCurrentPlayer(p => (p === 1 ? 2 : 1));
-              setIsChecking(false);
-            }, 2500);
-          }
+        if (firstCard.pairId === secondCard.pairId) {
+          // Paar gefunden!
+          timer = setTimeout(() => {
+            setMatchedPairs(prev => [...prev, firstCard.pairId]);
+            setScores(prev => ({
+              ...prev,
+              [`player${currentPlayer}`]: prev[`player${currentPlayer}`] + 1
+            }));
+            setFlippedCards([]);
+            setIsChecking(false);
+          }, 1000);
+        } else {
+          // Kein Paar - Karten wieder umdrehen und Spieler wechseln
+          timer = setTimeout(() => {
+            setFlippedCards([]);
+            setCurrentPlayer(p => (p === 1 ? 2 : 1));
+            setIsChecking(false);
+          }, 2500);
         }
+        return () => clearTimeout(timer);
       }, [flippedCards]);
 
       const handleCardClick = (card) => {
@@ -1864,12 +1949,9 @@
         // Dann gilt auch seine Sprache — gemerkt wird sie nicht, der Link
         // entscheidet nur für diesen Besuch.
         const onHash = () => {
-          const fromLink = langFromHash();
-          if (fromLink && fromLink !== currentLang) {
-            currentLang = fromLink;
-            document.documentElement.lang = fromLink;
-            redrawLang(fromLink); // sonst wüsste React nichts von der neuen Sprache
-          }
+          // Der Hash entscheidet, sonst die gemerkte Wahl — das deckt auch die
+          // Zurück-Taste des Browsers ab, die nicht über back() läuft.
+          applyLang(langFromHash() || loadLang());
           setRoute(getRoute());
         };
         window.addEventListener('hashchange', onHash);
@@ -1888,13 +1970,25 @@
         return next;
       });
 
-      const putMemory = (memory, dropBy) => updateStore((prev) => ({
+      // Die eine Regel fürs Ablegen: das alte Exemplar raus, das neue rein,
+      // sortiert bleiben. Beide Wege (Speichern, Import) gehen hier durch.
+      const insertMemory = (prev, memory, dropBy) => ({
         ...prev,
         memories: [...prev.memories.filter(dropBy), memory].sort(byTitle),
-      }));
+      });
 
-      // Gleicher Titel = neue Version desselben Memorys → ersetzen statt doppeln
-      const importMemory = (memory) => putMemory(memory, (m) => m.title !== memory.title);
+      const putMemory = (memory, dropBy) => updateStore((prev) => insertMemory(prev, memory, dropBy));
+
+      // Gleicher Titel = neue Version desselben Memorys → ersetzen statt doppeln.
+      // Überschrieben wird nur, was der Import wirklich mitbringt: eine Datei
+      // ohne «Sprache:»-Zeile lässt die eingestellte Sprache stehen, und wer sie
+      // nicht auf einen Ordner zieht, lässt das Memory liegen, wo es liegt.
+      // Auch die id bleibt — sonst zeigten Lesezeichen auf «#local=<id>» ins Leere.
+      const importMemory = (memory) => updateStore((prev) => {
+        const old = prev.memories.find((m) => m.title === memory.title);
+        return insertMemory(prev, old ? { ...old, ...memory, id: old.id } : memory,
+          (m) => m.title !== memory.title);
+      });
 
       const saveMemory = (memory) => {
         const saved = memory.id ? memory : { ...memory, id: newId() };
@@ -1945,6 +2039,7 @@
 
       const back = () => {
         history.replaceState(null, '', location.pathname);
+        restoreLang();
         setRoute(null);
       };
 

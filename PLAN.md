@@ -25,7 +25,10 @@ Dazugekommen:
   alle wieder die unterste Stufe.
 - **KI-Prompt im MyKahoot-Stil**: Ausfüll-Block zuoberst (Thema/Material,
   Klasse, Anzahl Paare, Sprache), darunter die Vorgaben; die KI liefert
-  `.txt`-Datei *und* denselben Text zum Kopieren.
+  `.txt`-Datei *und* denselben Text zum Kopieren. Der Dateiname beginnt mit
+  `Memory_` (zum Wiederfinden im Download-Ordner); der Import streift genau
+  dieses Präfix ab, aber nur mit Unterstrich — «Memory Vokabeln.txt» heisst
+  wirklich so.
 - **Export**: einzelnes Memory als `.txt` (mit `# Titel` zuoberst, damit der
   Titel den Weg zurück übersteht), alle zusammen als ZIP mit der Ordnerstruktur
   der App, leere Ordner inklusive. JSZip wird erst beim ersten Export vom CDN
@@ -38,6 +41,26 @@ Dazugekommen:
   das Format kennt. Den KI-Prompt gibt es in beiden Sprachen, die Sprache des
   Memorys steht im Ausfüll-Block. Übersetzt wird nur die Oberfläche, nie der
   Inhalt — auch die Beispiele bleiben deutsch.
+- **Sprache pro Memory** (`memory.lang`, optional): im Editor wählbar, in der
+  Liste als Kürzel sichtbar. `toHash`/`directLink` geben sie an `withLang`
+  weiter, sonst gilt dort die eingestellte — der Rest läuft über den
+  bestehenden `&l=`-Mechanismus, es gibt keinen zweiten Kanal daneben.
+  Zurück auf der Übersicht gilt wieder die eigene Wahl: die steht schon in
+  `LANG_KEY`, `restoreLang()` holt sie von dort statt sie ein zweites Mal zu
+  merken — das hält auch ein Neuladen mitten im Spiel aus. `applyLang` ist die
+  einzige Stelle, die die angezeigte Sprache wechselt.
+  In der `.txt` steht die Sprache als Zeile `Sprache: en` bzw. `Language: en`
+  (der KI-Prompt verlangt sie, `toFile` schreibt sie in der Sprache des
+  Memorys, `langInFile` liest beide Schlüssel tolerant — auch «Englisch»,
+  «German»); MyTafelfussball überliest die Zeile wie den Titel. Nicht in den
+  Link-Daten, dort reicht `&l=`.
+  **Re-Import** mit gleichem Titel überschreibt nur, was der Import wirklich
+  mitbringt (`{ ...alt, ...neu }` über dieselbe `insertMemory`-Regel wie das
+  Speichern): Sprache, Ordner und id des alten Stands bleiben stehen, wenn
+  Datei bzw. Ablageort nichts anderes sagen — die id, damit ein `#local=<id>`
+  nicht ins Leere zeigt. Ein Ordner zählt nur als Ansage, wenn die Datei
+  wirklich dorthin gezogen wurde; der Hauptordner (`''`) ist dabei so gezielt
+  wie jeder andere, «kein Ziel» ist `undefined`.
 - **Spielernamen**: «Spieler 1/2» in der Kopfzeile ist anklickbar und wird zum
   Eingabefeld — vor dem ersten Zug oder mitten im Spiel; kein Startdialog davor,
   damit der Weg über Direktlink/QR ohne Hürde ins Spiel führt. Leer = wieder der

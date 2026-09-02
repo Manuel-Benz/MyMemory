@@ -11,6 +11,16 @@ im Spiel**. Der Browser merkt sich die Wahl, der KI-Prompt wechselt mit.
 Übersetzt wird nur die Oberfläche — Memories, Titel und die Beispiele bleiben,
 wie sie sind.
 
+**Sprache pro Memory**: im Editor lässt sich unter „Sprache im Spiel" Deutsch
+oder Englisch fest wählen. Dann erscheinen Knöpfe und Meldungen beim Spielen in
+dieser Sprache — und Direktlink wie QR-Code tragen sie mit, egal was gerade
+eingestellt ist. Zurück auf der Übersicht gilt wieder die eigene Einstellung.
+Ohne Wahl („Wie in den Einstellungen") bleibt alles wie bisher. Ein kleines
+DE/EN-Kürzel in der Liste zeigt, welche Memories eine feste Sprache haben.
+Die KI setzt die Sprache gleich in die Datei (erste Zeile `Sprache: en`, aus
+dem Ausfüll-Block des Prompts), der Import liest sie, der Export schreibt sie
+wieder hinein.
+
 **Die Sprache reist im Link mit**: jede Adresse, welche die App schreibt, trägt
 sie am Ende (`…#m=…&l=de`) — also auch Direktlink und QR-Code. Die Klasse sieht
 das Memory in der Sprache, in der du geteilt hast, und kann im Spiel trotzdem
@@ -26,7 +36,8 @@ Alles steckt im aufklappbaren Kästchen **„Memory erstellen"**:
    anhängen.
 2. Die KI liefert eine `.txt`-Datei **und** denselben Text zum Kopieren. Datei
    auf die Website **ziehen** (oder die Ablage-Fläche anklicken) — der Dateiname
-   wird zum Titel. Oder den Text ins Feld **„oder Text einfügen"** kopieren und
+   wird zum Titel (ein vorangestelltes `Memory_`, wie es der Prompt verlangt,
+   fällt dabei weg). Oder den Text ins Feld **„oder Text einfügen"** kopieren und
    einen Titel eintippen.
 3. Das Memory erscheint unter „Meine Memories" – gespeichert im Browser
    (`localStorage`), nirgendwo sonst.
@@ -47,6 +58,8 @@ A: $13$
 - `F:` Vorderseite, `A:` Rückseite, `---` als Trenner (`Q:` statt `F:` geht auch).
 - Steht eine Zeile `# Titel` in der Datei, wird sie zum Titel; sonst zählt der
   Dateiname.
+- Eine Zeile `Sprache: de` oder `Sprache: en` (auch `Language:`) legt die
+  Sprache der Oberfläche im Spiel fest; ohne sie gilt die Einstellung.
 - LaTeX in `$...$` wird mit KaTeX gerendert, mischbar mit Text.
 - Kurz halten (Richtwert ~40 Zeichen): **Alle Kacheln tragen dieselbe
   Schriftgrösse** — der längste Eintrag bestimmt die Stufe für das ganze
