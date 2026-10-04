@@ -1725,11 +1725,13 @@
     // (Übersicht) bzw. 640 px (Spielfeld); darunter wäre sie zu eng. Sonst bleibt der
     // Knopf in der Kopfzeile und das Kästchen klappt über den Inhalt — nie schiebt es
     // die Spalte nach unten. Zu per Knopf, Klick daneben oder Esc.
+    // Im Spiel dockt es schon ab 1100 px an: das Feld ist breiter als die Spalte, der
+    // Knopf in der Kopfzeile stünde sonst mitten im Feld statt am Fensterrand.
     // `wide`: Spalte des Spiels (max-w-5xl) statt der Übersicht (max-w-2xl). Die
     // Klassen stehen ausgeschrieben da, sonst erzeugt Tailwind (CDN) sie nicht.
     const SETTINGS_DOCK = {
       narrow: 'min-[1200px]:fixed min-[1200px]:top-3 min-[1200px]:right-3.5 z-30',
-      wide: 'min-[1360px]:fixed min-[1360px]:top-3 min-[1360px]:right-3.5 z-30',
+      wide: 'min-[1100px]:fixed min-[1100px]:top-3 min-[1100px]:right-3.5 z-30',
     };
     const COLUMN = {
       narrow: 'max-w-2xl min-[1200px]:max-w-[min(42rem,calc(100vw-45rem))] mx-auto',
