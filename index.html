@@ -98,7 +98,7 @@
       :root {
         --flaeche-p1: var(--farbe-p1);
         --flaeche-p2: var(--farbe-p2);
-        --karte-antwort: var(--zeile-linie);
+        --karte-antwort: var(--linie);
         --schleier: rgba(32, 32, 34, .55);
       }
       .spieler.dran-1, .spieler.dran-2 { background: var(--zeile); }
@@ -209,10 +209,10 @@
     /* Offene Karte im laufenden Zug: ringsum in der Farbe dessen, der dran ist —
        sticht aus den ruhigen, gefundenen Paaren heraus. Gefunden: nur ein Balken
        unten in der Farbe des Finders. */
-    .karte-frage.offen-1, .karte-antwort.offen-1 { box-shadow: inset 0 0 0 4px var(--farbe-p1); }
-    .karte-frage.offen-2, .karte-antwort.offen-2 { box-shadow: inset 0 0 0 4px var(--farbe-p2); }
-    .karte-frage.von-1, .karte-antwort.von-1 { box-shadow: inset 0 -8px 0 var(--farbe-p1); }
-    .karte-frage.von-2, .karte-antwort.von-2 { box-shadow: inset 0 -8px 0 var(--farbe-p2); }
+    .offen-1 { box-shadow: inset 0 0 0 4px var(--farbe-p1); }
+    .offen-2 { box-shadow: inset 0 0 0 4px var(--farbe-p2); }
+    .von-1 { box-shadow: inset 0 -8px 0 var(--farbe-p1); }
+    .von-2 { box-shadow: inset 0 -8px 0 var(--farbe-p2); }
     /* QR-Code: schwarz auf weiss, sonst liest ihn kein Handy — auch im Dunkelmodus */
     .qr { background: #FFFFFF; padding: 8px; border-radius: var(--radius); }
     }

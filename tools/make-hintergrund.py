@@ -49,10 +49,7 @@ def shifts(x_min, x_max, margin=4):
 
 def wrapped(x, margin):
     """x und, falls nahe am Rand, die Kopie auf der anderen Seite (nahtlos in x)."""
-    xs = [x]
-    if x < margin: xs.append(x + W)
-    if x > W - margin: xs.append(x - W)
-    return xs
+    return [x + dx for dx in shifts(x, x, margin)]
 
 
 # ---------- Neuronen (Dunkel) ----------

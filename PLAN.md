@@ -22,7 +22,7 @@ Dazugekommen:
   getönt), Spielerfarbe = Ring beim Aufdecken, Balken unten am gefundenen Paar.
 - **Spielende**: «Zur Übersicht» als Hauptknopf, «Nochmal spielen» darunter.
 - **Dunkler Rand schneller**: Höfe als Verlauf statt Weichzeichner, Kopien nur
-  an den Kanten, Linien zusammengefasst (290 → 107 KB).
+  an den Kanten, Linien zusammengefasst (276 → 114 KB).
 - **Umbruch**: erst ganze Wörter (Schrift kleiner), dann Silbentrennung, erst
   zuletzt mitten im Wort. Wörter ab 14 Buchstaben dürfen gleich getrennt
   werden, sonst zwängt ein einziges Kompositum das ganze Feld klein.
