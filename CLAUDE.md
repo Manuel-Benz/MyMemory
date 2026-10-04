@@ -8,8 +8,12 @@ Stand und Backlog: `PLAN.md`.
 
 Eine einzige `index.html`: React 18 + Babel standalone, Tailwind per CDN
 (Konfiguration inline im `<head>`), KaTeX, qrcode-generator; JSZip wird erst beim
-Export nachgeladen. **Kein Build-Schritt, kein Backend.** Daten nur im Browser
-(`localStorage`) bzw. komprimiert im URL-Fragment (`#m=…`).
+Export nachgeladen. **Kein Build-Schritt, kein Backend.** Daten im Browser
+(`localStorage`) bzw. komprimiert im URL-Fragment (`#m=…`). Optional (Chrome/Edge am
+Computer) liegen die Memories als `.txt` in einem verknüpften Ordner — Logik 1:1 aus
+MyVoci (`readDir`/`fromDisk`/`mirrorDir`, Handle in IndexedDB `mymemory`→`kv`→`dir`,
+`mirrored`-Ref, eine Promise-Kette, Nachlesen beim Fenster-Fokus); Begründungen dort
+in der CLAUDE.md.
 
 ## Befehle
 
@@ -68,8 +72,8 @@ Deploy = `git push` auf `main` (GitHub Pages).
   Knöpfe darauf: `.auf-rand` (deckend, Hover als Schleier).
 - **Beispiele ausblendbar** (`mymemory_beispiele`, `useExamplesShown`): Auge-Knopf an der
   Liste, zurück über die Einstellungen.
-- **Spielfarben:** Spieler 1 + Vorderseiten = `--spiel-1`, Spieler 2 + Rückseiten =
-  `--spiel-4`, gefundene Paare `--gruen`, Kartenrücken = Akzent. `--spiel-2` bleibt
+- **Spielfarben:** Spieler 1 = `--spiel-1`, Spieler 2 =
+  `--spiel-4`; offene Karten (mit Rand) und gefundene Paare tragen die Farbe des Spielers, Kartenrücken = Akzent. `--spiel-2` bleibt
   aussen vor (in Budapest identisch mit dem Akzent). In «Isle of Dogs» sind `--spiel-1`/`-4` fast gleich: dort nimmt Spieler 2 `--blau`. Spielfarbe nur als Fläche/Punkt,
   Punktzahlen in `--text` (Rosa erreicht als Schrift nur 2:1).
 - **Eigener Umschalter Hell/Dunkel/System** (`data-modus`). Bekannte Grenze aus

@@ -98,6 +98,9 @@ das Raster passt sich der Anzahl an.
   anderen Ordner oder zurück in die Liste (= Hauptordner) ziehen. Eine `.txt`
   direkt auf einen Ordner gezogen wird gleich dort importiert.
 - Welche Ordner offen sind, merkt sich der Browser.
+- **Ordner auf dem Computer** (Chrome/Edge): «Ordner wählen» unter der Liste —
+  dann liegen die Memories als `.txt` in diesem Ordner, Unterordner = Ordner.
+  Im Finder abgelegte oder gelöschte Dateien erscheinen beim Zurückwechseln.
 
 ## Namen der Spielenden
 

@@ -77,14 +77,18 @@
       /* Signalfarben als Schrift: Orange/Grün erreichen auf Weiss nur ~3:1 */
       --rot-text: color-mix(in oklab, var(--rot) 80%, var(--text));
       --orange-text: color-mix(in oklab, var(--orange) 60%, var(--text));
-      /* Spiel: Spieler 1 + Vorderseite, Spieler 2 + Rückseite. Spielfarbe 2 bleibt
+      /* Spiel: Karten tragen die Farbe dessen, der sie aufgedeckt bzw. das Paar
+         gefunden hat. Spielfarbe 2 bleibt
          aussen vor — im Schema Budapest ist sie identisch mit dem Akzent (Aubergine). */
       --farbe-p1: var(--spiel-1);
       --farbe-p2: var(--spiel-4);
-      --ink-p1: var(--text); --ink-p2: var(--text); --ink-paar: var(--text);
+      --ink-p1: var(--text); --ink-p2: var(--text);
       --flaeche-p1: color-mix(in oklab, var(--farbe-p1) 24%, var(--karte));
       --flaeche-p2: color-mix(in oklab, var(--farbe-p2) 24%, var(--karte));
-      --flaeche-paar: color-mix(in oklab, var(--gruen) 36%, var(--karte));
+      /* Karten kräftiger als die Spielerfelder: auf dem Spielfeld müssen sich
+         die beiden Spieler auf einen Blick trennen lassen. */
+      --karte-p1: color-mix(in oklab, var(--farbe-p1) 42%, var(--karte));
+      --karte-p2: color-mix(in oklab, var(--farbe-p2) 42%, var(--karte));
       --schleier: color-mix(in srgb, var(--leiste) 55%, transparent);
     }
     /* Isle of Dogs: Spielfarbe 1 und 4 sind beide Beigebraun (Abstand unter der
@@ -96,7 +100,7 @@
       :root {
         --flaeche-p1: var(--farbe-p1); --ink-p1: var(--spiel-1-ink);
         --flaeche-p2: var(--farbe-p2); --ink-p2: var(--spiel-4-ink);
-        --flaeche-paar: var(--gruen); --ink-paar: #FFFFFF;
+        --karte-p1: var(--farbe-p1); --karte-p2: var(--farbe-p2);
         --schleier: rgba(32, 32, 34, .55);
       }
       [data-schema="isle"] { --ink-p2: #FFFFFF; }
@@ -203,16 +207,21 @@
     .punkt-2 { background: var(--farbe-p2); }
     .karte-ruecken { background: var(--akzent); color: var(--akzent-ink); }
     .karte-ruecken:hover { background: color-mix(in oklab, var(--akzent) 85%, var(--text)); }
-    .karte-frage { background: var(--flaeche-p1); color: var(--ink-p1); }
-    .karte-antwort { background: var(--flaeche-p2); color: var(--ink-p2); }
-    .karte-paar { background: var(--flaeche-paar); color: var(--ink-paar); }
+    /* Offene Karte im laufenden Zug: Fläche + Rand in der Spielerfarbe, damit sie
+       aus den ruhigen, gefundenen Paaren (nur Fläche) heraussticht. */
+    .karte-1 { background: var(--karte-p1); color: var(--ink-p1); }
+    .karte-2 { background: var(--karte-p2); color: var(--ink-p2); }
+    .karte-1.offen { box-shadow: inset 0 0 0 3px var(--farbe-p1); }
+    .karte-2.offen { box-shadow: inset 0 0 0 3px var(--farbe-p2); }
     /* QR-Code: schwarz auf weiss, sonst liest ihn kein Handy — auch im Dunkelmodus */
     .qr { background: #FFFFFF; padding: 8px; border-radius: var(--radius); }
     }
 
     /* Spielfeld: Spaltenzahl passt sich der Kartenzahl an (immer ALLE Paare der Datei) */
-    .board { display: grid; gap: .75rem; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
-    @media (max-width: 640px) { .board { grid-template-columns: repeat(var(--cols-sm), minmax(0, 1fr)); gap: .5rem; } }
+    /* Flex statt Grid: eine angebrochene letzte Reihe steht so mittig */
+    .board { --gap: .75rem; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--gap); }
+    .board > .platz { flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols)); }
+    @media (max-width: 640px) { .board { --gap: .5rem; } }
   </style>
 </head>
 <body>
@@ -242,7 +251,7 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo, useRef, useSyncExternalStore } = React;
+    const { useState, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } = React;
 
     // ---------- Browser-Speicher ----------
     // Der Browser darf jederzeit nein sagen (privates Fenster, voller Speicher) —
@@ -362,6 +371,15 @@
         examplesShown: { an: 'Anzeigen', aus: 'Ausblenden' },
         emptyList: 'Noch nichts da — oben ein Memory erstellen oder eine Datei hierher ziehen.',
         storedHint: 'Gespeichert in diesem Browser. Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze Memory. Memories und Ordner lassen sich per Ziehen umhängen.',
+        storedHintDir: (name) => `Gespeichert als Dateien im Ordner «${name}». Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze Memory. Memories und Ordner lassen sich per Ziehen umhängen, die Dateien wandern mit.`,
+        importHintDir: (name) => `Importierte Memories landen als .txt im Ordner «${name}».`,
+        dirOffer: 'Die Memories können auch als Dateien in einem Ordner auf dem Computer liegen (wie in MyVoci) — dann bleiben sie, wenn der Browser aufräumt.',
+        dirChoose: 'Ordner wählen',
+        dirReload: 'Neu laden',
+        dirDisconnect: 'Trennen',
+        dirPrompt: (name) => `Der Ordner «${name}» braucht deine Freigabe, bevor die Memories dort gespeichert werden.`,
+        dirReconnect: 'Ordner freigeben',
+        dirError: (name) => `Der Ordner «${name}» ist nicht erreichbar (verschoben, gelöscht oder Zugriff verweigert). Änderungen bleiben bis dahin nur im Browser.`,
         nPairs: (n) => `${n} ${n === 1 ? 'Paar' : 'Paare'}`,
         nMemories: (n) => `${n} ${n === 1 ? 'Memory' : 'Memories'}`,
         // Knöpfe und Rückmeldungen
@@ -491,6 +509,15 @@
         examplesShown: { an: 'Show', aus: 'Hide' },
         emptyList: 'Nothing here yet — create a memory above or drag a file here.',
         storedHint: 'Stored in this browser. To share: direct link or QR code — the whole memory is inside it. Memories and folders can be moved by dragging.',
+        storedHintDir: (name) => `Stored as files in the folder “${name}”. To share: direct link or QR code — the whole memory is inside it. Memories and folders can be moved by dragging, and the files move along.`,
+        importHintDir: (name) => `Imported memories are saved as .txt in the folder “${name}”.`,
+        dirOffer: 'Your memories can also live as files in a folder on this computer (like in MyVoci) — then they survive a browser clean-up.',
+        dirChoose: 'Choose folder',
+        dirReload: 'Reload',
+        dirDisconnect: 'Disconnect',
+        dirPrompt: (name) => `The folder “${name}” needs your permission before the memories are saved there.`,
+        dirReconnect: 'Grant access',
+        dirError: (name) => `The folder “${name}” is not reachable (moved, deleted or access denied). Until then, changes stay in the browser only.`,
         nPairs: (n) => `${n} ${n === 1 ? 'pair' : 'pairs'}`,
         nMemories: (n) => `${n} ${n === 1 ? 'memory' : 'memories'}`,
         newMemory: 'New memory',
@@ -921,6 +948,169 @@
       };
     };
 
+    // ---------- Ordner auf der Platte (wie in MyVoci) ----------
+    // Chrome/Edge am Computer öffnen über die File System Access API einen
+    // Ordner; dann liegen die Memories dort als .txt (Unterordner = Ordner), und
+    // localStorage ist nur noch Zwischenspeicher — die Liste steht sofort,
+    // auch bevor der Browser den Zugriff wieder freigegeben hat. Der
+    // Ordner-Handle überlebt nur in IndexedDB, nicht in localStorage.
+    const dirSupported = typeof window.showDirectoryPicker === 'function';
+    const openDb = () => new Promise((resolve, reject) => {
+      const req = indexedDB.open('mymemory', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('kv');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const dbRun = async (mode, act) => {
+      const db = await openDb();
+      return new Promise((resolve, reject) => {
+        const req = act(db.transaction('kv', mode).objectStore('kv'));
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    };
+    const loadDirHandle = () => dbRun('readonly', (kv) => kv.get('dir')).catch(() => undefined);
+    const saveDirHandle = (h) => dbRun('readwrite', (kv) => (h ? kv.put(h, 'dir') : kv.delete('dir'))).catch(() => {});
+
+    const isMemoryFile = (name) => /\.(txt|md)$/i.test(name) && !name.startsWith('.');
+    const fileName = (memory) => memory.file || `${safeName(memory.title)}.txt`;
+    const memoryPath = (memory) => `${memory.dir ? safeDir(memory.dir) + '/' : ''}${fileName(memory)}`;
+    // Der Titel ist nur innerhalb eines Ordners eindeutig, nicht in der App
+    const memoryPlace = (memory) => `${memory.dir || ''}\u0000${memory.title}`;
+
+    // Liest den ganzen Ordner: Memories noch ohne id (die vergibt fromDisk),
+    // Ordnerpfade wie im Store («Mathe/Klasse 8»). Dateien ohne ein einziges
+    // Paar sind keine Memories (Notizen, Listen) und bleiben aussen vor.
+    const readDir = async (root) => {
+      const files = [], folders = [];
+      // Erst den Baum ablaufen, dann alle Dateien auf einmal lesen: einzeln
+      // abgewartet kostet jede Datei eine eigene Runde ins Dateisystem.
+      const walk = async (handle, dir) => {
+        for await (const [name, entry] of handle.entries()) {
+          if (name.startsWith('.')) continue;
+          if (entry.kind === 'directory') {
+            const path = dir ? `${dir}/${name}` : name;
+            folders.push(path);
+            await walk(entry, path);
+          } else if (isMemoryFile(name)) files.push({ name, dir, entry });
+        }
+      };
+      await walk(root, '');
+      const read = await Promise.all(files.map(async ({ name, dir, entry }) => {
+        const parsed = parseFile(await (await entry.getFile()).text(), name);
+        // `file` merkt sich den echten Dateinamen nur, wenn er vom Titel
+        // abweicht («Memory_Thema.txt» mit «# Thema»): dann schreibt die App
+        // weiter dorthin, statt eine zweite Datei anzulegen. `disk` heisst «lag
+        // schon einmal im Ordner» — daran hängt, ob ein Memory, das dort fehlt,
+        // im Finder gelöscht wurde oder bloss noch nie geschrieben wurde.
+        const memory = { ...parsed, dir, disk: true };
+        if (!memory.lang) delete memory.lang;
+        return name === fileName(memory) ? memory : { ...memory, file: name };
+      }));
+      return { memories: read.filter((m) => m.pairs.length), folders };
+    };
+
+    const dirOf = async (root, path, create) => {
+      let h = root;
+      for (const part of path.split('/').filter(Boolean)) h = await h.getDirectoryHandle(part, { create });
+      return h;
+    };
+    const splitPath = (path) => [parentDir(path), dirName(path)];
+    const writeFile = async (root, path, text) => {
+      const [dir, name] = splitPath(path);
+      const fh = await (await dirOf(root, dir, true)).getFileHandle(name, { create: true });
+      const w = await fh.createWritable();
+      await w.write(text);
+      await w.close();
+    };
+    const removeFile = async (root, path) => {
+      const [dir, name] = splitPath(path);
+      try { await (await dirOf(root, dir, false)).removeEntry(name); } catch {}
+    };
+    const removeEmptyDir = async (root, path) => {
+      try {
+        for await (const _ of (await dirOf(root, path, false)).keys()) return; // nicht leer → bleibt stehen
+        const [dir, name] = splitPath(path);
+        await (await dirOf(root, dir, false)).removeEntry(name);
+      } catch {}
+    };
+
+    // Schreibt nur, was sich geändert hat: Diff über die id, verglichen werden
+    // Pfad und Dateiinhalt. Gelöscht → Datei weg; umbenannt/verschoben → alte
+    // Datei weg, neue hin; leer gewordene Ordner werden mitgeräumt.
+    const mirrorDir = async (root, prev, next) => {
+      const before = new Map(prev.memories.map((m) => [m.id, m]));
+      const after = new Set(next.memories.map((m) => m.id));
+      const prevFolders = allFolders(prev), nextFolders = allFolders(next);
+      for (const f of nextFolders) if (!prevFolders.includes(f)) await dirOf(root, safeDir(f), true);
+      const jobs = [];
+      for (const m of next.memories) {
+        const old = before.get(m.id);
+        if (old === m) continue; // unverändert — spart das Serialisieren
+        const path = memoryPath(m), text = toFile(m);
+        if (old && memoryPath(old) === path && toFile(old) === text) continue;
+        jobs.push((async () => {
+          if (old && memoryPath(old) !== path) await removeFile(root, memoryPath(old));
+          await writeFile(root, path, text);
+        })());
+      }
+      for (const m of prev.memories) if (!after.has(m.id)) jobs.push(removeFile(root, memoryPath(m)));
+      await Promise.all(jobs);
+      // Ordner erst danach und von innen nach aussen: ein Ordner ist nur leer,
+      // wenn seine Dateien schon weg sind.
+      const gone = prevFolders.filter((f) => !nextFolders.includes(f)).sort((a, b) => b.length - a.length);
+      for (const f of gone) await removeEmptyDir(root, safeDir(f));
+    };
+
+    // «Ergänzt, was fehlt»: vorhandene Paare bleiben in ihrer Reihenfolge, neue
+    // kommen hinten dazu — beim Verbinden verschluckt eine ältere Datei so
+    // keine im Browser ergänzten Paare.
+    const pairKey = (p) => `${p.question}\u0001${p.answer}`;
+    const mergePairs = (a, b) => {
+      const has = new Set(a.map(pairKey));
+      return [...a, ...b.filter((p) => !has.has(pairKey(p)))];
+    };
+
+    // Vom Ordner in den Store. Die id soll am richtigen Memory kleben bleiben
+    // (Lesezeichen auf #local=<id>, ein offener Editor). `keepAll` gilt nur beim
+    // ausdrücklichen Verbinden: dann bleibt auch, was schon einmal im Ordner lag
+    // (Ordnerwechsel). Sonst bleiben nur Memories ohne `disk` — was dort fehlt
+    // und dort schon lag, wurde im Finder gelöscht.
+    // Zurück kommt neben dem neuen Stand auch `onDisk`: der reine Inhalt des
+    // Ordners, gegen den mirrorDir seine Differenz bildet.
+    const fromDisk = (prev, disk, keepAll) => {
+      const byPlace = new Map(prev.memories.map((m) => [memoryPlace(m), m]));
+      const used = new Set();
+      const take = (d, old) => {
+        used.add(old.id);
+        return { ...d, id: old.id, ...(keepAll ? { pairs: mergePairs(d.pairs, old.pairs) } : {}) };
+      };
+      // Erst der sichere Treffer: gleicher Ordner, gleicher Titel.
+      const first = disk.memories.map((d) => {
+        const old = byPlace.get(memoryPlace(d));
+        return old && !used.has(old.id) ? take(d, old) : { ...d, id: null };
+      });
+      // Dann verschoben oder umbenannt: nur Memories, die schon im Ordner lagen
+      // und deren Titel auf beiden Seiten genau einmal vorkommt.
+      const free = new Map();
+      for (const m of prev.memories) if (!used.has(m.id) && m.disk) free.set(m.title, free.has(m.title) ? null : m);
+      const want = {};
+      for (const d of first) if (!d.id) want[d.title] = (want[d.title] || 0) + 1;
+      const memories = first.map((d) => {
+        const old = d.id ? null : want[d.title] === 1 ? free.get(d.title) : null;
+        return d.id ? d : old ? take(d, old) : { ...d, id: newId() };
+      });
+      // Bewusst nicht aus `memories` abgeleitet: dort stecken beim Verbinden
+      // schon die ergänzten Paare, und die soll mirrorDir ja noch schreiben.
+      const onDisk = { memories: disk.memories.map((d, i) => ({ ...d, id: memories[i].id })).sort(byTitle), folders: disk.folders };
+      const local = prev.memories.filter((m) => !used.has(m.id) && (keepAll || !m.disk));
+      const next = {
+        memories: [...memories, ...local].sort(byTitle),
+        folders: [...new Set([...disk.folders, ...(keepAll ? prev.folders : [])])],
+      };
+      return { next, onDisk };
+    };
+
     // Beispiele ein-/ausblenden: Knopf an der Beispiel-Liste, zurück über die
     // Einstellungen — beide hören auf denselben Wert. Er steht im Speicher der Seite,
     // nicht in localStorage: der Browser darf das Schreiben verweigern, und dann soll der
@@ -1086,7 +1276,8 @@
         }
       }, [content]);
 
-      return <span ref={ref} className="break-words [overflow-wrap:anywhere]"></span>;
+      // Umbrechen regelt der Aufrufer (Karte: WRAP, Vorschau: break-words)
+      return <span ref={ref}></span>;
     };
 
     // ---------- Text, der sich auf die Kachel einpasst ----------
@@ -1095,7 +1286,7 @@
     // oberste Stufe gilt für kurze Einträge (die dürfen gross sein), die unterste
     // ist die Grenze — darunter wird es auch am Beamer nicht mehr lesbar.
     // Handy-Kacheln sind viel kleiner, deshalb dort eine eigene Leiter.
-    const FONT_STEPS = [24, 22, 20, 18, 16, 14];
+    const FONT_STEPS = [32, 28, 24, 22, 20, 18, 16, 14];
     const FONT_STEPS_SM = [18, 16, 14, 12, 11, 10];
     const SMALL_SCREEN = window.matchMedia('(max-width: 640px)');
     // Welche Leiter gerade gilt — gefragt beim Messen und für die Grösse davor.
@@ -1115,7 +1306,24 @@
     // dann noch nicht passt, ist schlicht zu lang für eine Karte.
     const MIN_PX = 8;
 
-    // Zurück kommt eine Map Inhalt → px (Map statt Objekt: Kartentexte wie
+    // Wie ein Wort umbrechen darf, gestaffelt: zuerst nur ganze Wörter (die
+    // Schrift wird lieber kleiner als «Deutschla/nd»), für Ausreisser dann
+    // Silbentrennung nach der Sprache am <html>, ganz zuletzt mitten im Wort.
+    // Würde von Anfang an überall umgebrochen, passte jeder Text scheinbar
+    // schon auf der obersten Stufe und die Schrift ginge nie hinunter.
+    // Zusammengesetzte Wörter («Rindfleischetikettierung») dürfen von Anfang an
+    // getrennt werden: als Ganzes zwängen sie sonst die Schrift des ganzen
+    // Feldes klein. Kürzere Wörter («Deutschland») bleiben immer ganz.
+    const LONG_WORD = 14;
+    const baseWrap = (content) =>
+      content.replace(/\$[^$]*\$/g, ' ').split(/[\s\-\/]+/).some((w) => w.length >= LONG_WORD) ? 'hyphen' : 'whole';
+    const WRAP = {
+      whole: { overflowWrap: 'normal', hyphens: 'manual', WebkitHyphens: 'manual' },
+      hyphen: { overflowWrap: 'normal', hyphens: 'auto', WebkitHyphens: 'auto' },
+      anywhere: { overflowWrap: 'anywhere', hyphens: 'auto', WebkitHyphens: 'auto' },
+    };
+
+    // Zurück kommt eine Map Inhalt → { px, wrap } (Map statt Objekt: Kartentexte wie
     // «constructor» sind gültige Schlüssel, keine geerbten Eigenschaften).
     const useSharedFontSize = (contents, boxRef) => {
       const probeRef = useRef(null);
@@ -1137,6 +1345,9 @@
           els.forEach(el => { el.style.maxWidth = `${availW}px`; });
           const steps = fontSteps();
           const setStep = (step) => els.forEach(el => { el.style.fontSize = `${step}px`; });
+          const setWrap = (el, wrap) => Object.assign(el.style, WRAP[wrap]);
+          const bases = contents.map(baseWrap);
+          els.forEach((el, i) => setWrap(el, bases[i]));
           const fits = (el) => el.scrollWidth <= availW && el.scrollHeight <= availH;
 
           // Einmal die Leiter hinunter und dabei merken, wer auf welcher Stufe
@@ -1155,24 +1366,40 @@
           const level = unfitAt.findIndex(unfit => unfit.every(el => stubborn.has(el)));
           const chosen = steps[level < 0 ? steps.length - 1 : level];
 
-          // Für jeden Ausreisser die grösste Schrift suchen, bei der er ganz auf
-          // die Kachel passt. Halbierend statt gerechnet: umbrechender Text wird
-          // mit halber Schrift nicht halb so hoch, sondern viertelt sich (halb so
-          // breite Zeilen UND halb so viele) — eine Formel dagegen schrumpft
-          // linear. Gemessen schlägt gerechnet.
-          const next = new Map(contents.map(content => [content, chosen]));
-          els.forEach((el, i) => {
-            if (!stubborn.has(el)) return;
-            let lo = MIN_PX, hi = chosen; // lo passt (oder ist die Untergrenze), hi passt nicht
+          // Für jeden, der auf der gewählten Stufe nicht als ganze Wörter passt
+          // (Ausreisser, oder alle, wenn alle lang sind), die grösste Schrift
+          // suchen: erst ganze Wörter etwas kleiner («Niederlande» schlägt
+          // «Niederlan-de»), dann mit Silbentrennung, dann mitten im Wort. Halbierend
+          // statt gerechnet: umbrechender Text wird mit halber Schrift nicht
+          // halb so hoch, sondern viertelt sich (halb so breite Zeilen UND halb
+          // so viele) — eine Formel dagegen schrumpft linear. Gemessen schlägt
+          // gerechnet.
+          const largestFit = (el, floor) => { // grösste passende Schrift in [floor, chosen], sonst 0
+            el.style.fontSize = `${chosen}px`;
+            if (fits(el)) return chosen;
+            let lo = floor - 1, hi = chosen; // lo passt (oder liegt unter der Grenze), hi passt nicht
             while (hi - lo > 1) {
               const mid = Math.floor((lo + hi) / 2);
               el.style.fontSize = `${mid}px`;
               if (fits(el)) lo = mid; else hi = mid;
             }
-            next.set(contents[i], lo);
+            return lo < floor ? 0 : lo;
+          };
+          setStep(chosen);
+          const wholeFloor = Math.max(MIN_PX, Math.round(chosen * 0.8));
+          const next = new Map(contents.map((content, i) => [content, { px: chosen, wrap: bases[i] }]));
+          els.forEach((el, i) => {
+            if (fits(el)) return;
+            let px = 0, wrap;
+            for (wrap of ['whole', 'hyphen', 'anywhere'].slice(bases[i] === 'hyphen' ? 1 : 0)) {
+              setWrap(el, wrap);
+              px = largestFit(el, wrap === 'whole' ? wholeFloor : MIN_PX);
+              if (px) break;
+            }
+            next.set(contents[i], { px: px || MIN_PX, wrap });
           });
           setSizes((prev) => (
-            prev.size === next.size && [...next].every(([c, px]) => prev.get(c) === px) ? prev : next
+            prev.size === next.size && [...next].every(([c, v]) => prev.get(c)?.px === v.px && prev.get(c)?.wrap === v.wrap) ? prev : next
           ));
         };
         // Beim Ziehen am Fensterrand kämen sonst 60 Messungen pro Sekunde —
@@ -1214,12 +1441,69 @@
       ), [key]);
       // Der Aufrufer fragt nur nach dem Inhalt; wie die Grösse zustande kommt,
       // bleibt hier drin. Vor der ersten Messung gilt die oberste Stufe.
-      const sizeFor = (content) => sizes.get(content) || fontSteps()[0];
+      const sizeFor = (content) => sizes.get(content) || { px: fontSteps()[0], wrap: 'whole' };
       return [sizeFor, probe];
     };
 
-    const FitText = ({ content, size }) => (
-      <div className="max-w-full leading-tight" style={{ fontSize: `${size}px` }}>
+    // ---------- Spielfeld, das ins Fenster passt ----------
+    // Das ganze Feld soll ohne Scrollen sichtbar sein — am Beamer sieht sonst
+    // die halbe Klasse die untere Hälfte nicht. Für jede Spaltenzahl wird die
+    // Kachel so gross wie möglich gerechnet (Breite UND Höhe begrenzen), und die
+    // grösste gewinnt: 16 Karten werden am breiten Beamer 8×2 statt 4×4.
+    // Wäre die Kachel dann kleiner als MIN_TILE (Handy, viele Karten), bleibt
+    // es beim Scrollen mit der alten Spaltenregel über die ganze Breite —
+    // lesbare Karten schlagen ein Feld ohne Scrollen.
+    // Das Feld darf breiter werden als die Spalte darüber: die ist ab 1360 px
+    // für das Einstellungs-Kästchen verschmälert, das beim Spielen aber zu ist.
+    // Geöffnet liegt es dann halt kurz über den Karten.
+    const TILE_RATIO = 1.5; // aspect-[3/2]
+    const MIN_TILE = 110;
+    const BOARD_RESERVE = 104; // unter dem Feld: Abstand, «Neues Spiel», Seitenrand
+    const useBoardLayout = (count, fallbackCols, boardRef) => {
+      const [layout, setLayout] = useState({ cols: fallbackCols, width: null });
+      useLayoutEffect(() => {
+        const board = boardRef.current;
+        if (!board) return;
+        const page = board.parentElement.parentElement; // Feld → Spalte → Seite
+        const measure = () => {
+          const ps = getComputedStyle(page);
+          const availW = page.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
+          const availH = window.innerHeight - (board.getBoundingClientRect().top + window.scrollY) - BOARD_RESERVE;
+          const gap = parseFloat(getComputedStyle(board).columnGap) || 0;
+          let best = null;
+          for (let cols = 2; cols <= Math.min(count, 10); cols++) {
+            const rows = Math.ceil(count / cols);
+            const empty = cols * rows - count;
+            const byW = (availW - gap * (cols - 1)) / cols;
+            const byH = ((availH - gap * (rows - 1)) / rows) * TILE_RATIO;
+            // Leere Plätze in der letzten Reihe kosten: ein volles Raster sieht
+            // ruhiger aus, wenn es fast gleich gross wird. Die angebrochene
+            // Reihe steht mittig (.board ist flex-wrap), das fällt wenig auf.
+            const tile = Math.min(byW, byH);
+            if (tile < MIN_TILE) continue;
+            const score = tile * 0.85 ** empty;
+            if (!best || score > best.score) best = { cols, tile, score };
+          }
+          const next = best
+            ? { cols: best.cols, width: Math.floor(best.cols * best.tile + gap * (best.cols - 1)) }
+            : { cols: fallbackCols, width: null };
+          setLayout((prev) => (prev.cols === next.cols && prev.width === next.width ? prev : next));
+        };
+        measure();
+        let frame = 0;
+        const refit = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); };
+        window.addEventListener('resize', refit);
+        // Die Spalte ändert ihre Breite auch ohne Fenster-Resize (Tailwind vom
+        // CDN kommt spät, Einstellungen wandern an den Rand)
+        const observer = window.ResizeObserver ? new ResizeObserver(refit) : null;
+        if (observer) { observer.observe(board.parentElement); observer.observe(page); }
+        return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', refit); observer?.disconnect(); };
+      }, [count, fallbackCols]);
+      return layout;
+    };
+
+    const FitText = ({ content, fit }) => (
+      <div className="max-w-full leading-tight" style={{ fontSize: `${fit.px}px`, ...WRAP[fit.wrap] }}>
         <MathRenderer content={content} />
       </div>
     );
@@ -1507,7 +1791,7 @@
     };
 
     // ---------- Auswahlseite ----------
-    const Selection = ({ own, folders, onOpen, onEdit, onNew, onImport, onDelete, folderApi }) => {
+    const Selection = ({ own, folders, onOpen, onEdit, onNew, onImport, onDelete, folderApi, dir }) => {
       const [toast, setToast] = useState(null);
       const [qr, setQr] = useState(null); // { title, url }
       const [createOpen, setCreateOpen] = useState(false);
@@ -1839,10 +2123,24 @@
                   >
                     {t('importText')}
                   </button>
-                  <p className="text-sm text-text-3 mt-3">{t('importHint')}</p>
+                  <p className="text-sm text-text-3 mt-3">{dir.status === 'ok' ? t('importHintDir', dir.name) : t('importHint')}</p>
                 </div>
               )}
             </div>
+
+            {(dir.status === 'prompt' || dir.status === 'error') && (
+              <div className={`${CARD} p-4 mb-6 text-sm`}>
+                <p className={`mb-3 font-semibold ${dir.status === 'prompt' ? 'text-orange' : 'text-rot'}`}>
+                  {dir.status === 'prompt' ? t('dirPrompt', dir.name) : t('dirError', dir.name)}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {dir.status === 'prompt'
+                    ? <button onClick={dir.reconnect} className={`${BTN_PRIMARY} !py-1.5 text-sm`}>{t('dirReconnect')}</button>
+                    : <button onClick={dir.refresh} className={`${BTN_SECONDARY} !py-1.5 text-sm`}>{t('dirReload')}</button>}
+                  <button onClick={dir.disconnect} className={`${BTN_NEUTRAL} !py-1.5 text-sm`}>{t('dirDisconnect')}</button>
+                </div>
+              </div>
+            )}
 
             <div className={`${CARD} p-3 sm:p-4 mb-6`}>
               <div className="flex items-center gap-1 mb-2 pl-2.5">
@@ -1863,8 +2161,25 @@
                   </div>
                 )}
               </div>
-              {own.length > 0 && (
+              {/* Mit verbundenem Ordner stimmt «in diesem Browser» nicht mehr */}
+              {own.length > 0 && dir.status !== 'ok' && (
                 <p className="text-sm text-text-3 mt-2 px-2.5">{t('storedHint')}</p>
+              )}
+              {dir.status === 'ok' && (
+                <p className="text-sm text-text-3 mt-2 px-2.5">
+                  {t('storedHintDir', dir.name)}{' '}
+                  <button onClick={dir.refresh} className="underline font-semibold hover:text-text-2">{t('dirReload')}</button>
+                  {' · '}
+                  <button onClick={dir.disconnect} className="underline font-semibold hover:text-text-2">{t('dirDisconnect')}</button>
+                </p>
+              )}
+              {/* Ein einmaliger Einrichtungsschritt — hinter dem Zahnrad fände ihn
+                  niemand. Nur wo er geht (Chrome/Edge am Computer). */}
+              {dir.status === 'none' && (
+                <p className="text-sm text-text-3 mt-2 px-2.5">
+                  {t('dirOffer')}{' '}
+                  <button onClick={dir.connect} className="underline font-semibold hover:text-text-2">{t('dirChoose')}</button>
+                </p>
               )}
             </div>
 
@@ -1958,7 +2273,7 @@
 
       // Vorschau nur, wo sie etwas zeigt, das im Feld nicht steht (LaTeX)
       const preview = (text) => text.includes('$') && (
-        <div className="mt-1 text-sm text-text-2"><MathRenderer content={text} /></div>
+        <div className="mt-1 text-sm text-text-2 break-words"><MathRenderer content={text} /></div>
       );
 
       const field = (i, key, label, placeholder) => (
@@ -2107,6 +2422,8 @@
       const [cards, setCards] = useState(createCards);
       const [flippedCards, setFlippedCards] = useState([]);
       const [matchedPairs, setMatchedPairs] = useState([]);
+      // Wer welches Paar gefunden hat (pairId → 1/2): die Karte behält seine Farbe
+      const [foundBy, setFoundBy] = useState({});
       const [currentPlayer, setCurrentPlayer] = useState(1);
       const [scores, setScores] = useState({ player1: 0, player2: 0 });
       // Leer = Standardname. Beim Verlassen des Spiels verschwinden die Namen
@@ -2135,8 +2452,15 @@
         return fallback;
       };
       const cardCount = cards.length;
-      const cols = cardCount <= 16 ? colsFor(cardCount, [4, 3, 5, 6], 4) : colsFor(cardCount, [6, 5, 4], 6);
-      const colsSm = colsFor(cardCount, [3, 4], 4);
+      const isSmall = useSyncExternalStore(
+        (fn) => { SMALL_SCREEN.addEventListener('change', fn); return () => SMALL_SCREEN.removeEventListener('change', fn); },
+        () => SMALL_SCREEN.matches);
+      // Rückfall, wenn das Feld nicht ins Fenster passt (s. useBoardLayout)
+      const fallbackCols = isSmall
+        ? 3 // Handy: lieber scrollen als Kacheln, auf denen man nichts mehr liest
+        : cardCount <= 16 ? colsFor(cardCount, [4, 3, 5, 6], 4) : colsFor(cardCount, [6, 5, 4], 6);
+      const boardRef = useRef(null);
+      const board = useBoardLayout(cardCount, fallbackCols, boardRef);
 
       // Prüfen ob zwei aufgedeckte Karten ein Paar bilden. Der Timer hängt am
       // Effekt: «Neues Spiel» und das Verlassen räumen die aufgedeckten Karten
@@ -2154,6 +2478,7 @@
           // Paar gefunden!
           timer = setTimeout(() => {
             setMatchedPairs(prev => [...prev, firstCard.pairId]);
+            setFoundBy(prev => ({ ...prev, [firstCard.pairId]: currentPlayer }));
             setScores(prev => ({
               ...prev,
               [`player${currentPlayer}`]: prev[`player${currentPlayer}`] + 1
@@ -2186,6 +2511,7 @@
         setCards(createCards());
         setFlippedCards([]);
         setMatchedPairs([]);
+        setFoundBy({});
         setCurrentPlayer(1);
         setScores({ player1: 0, player2: 0 });
         setIsChecking(false);
@@ -2198,7 +2524,7 @@
           <div className={COLUMN.wide}>
             {/* Kopfzeile als Reihe: der Titel bekommt, was zwischen den Knöpfen
                 bleibt — absolut gesetzte Knöpfe lägen auf dem Handy darüber */}
-            <div className="flex items-center gap-2 mb-8">
+            <div className="flex items-center gap-2 mb-4">
               <button
                 onClick={onBack}
                 title={t('toOverview')}
@@ -2210,25 +2536,28 @@
               <Settings wide />
             </div>
 
-            {/* Spielerinfo */}
-            {/* Spielfarbe als Fläche und Punkt, die Zahl bleibt in --text: Spielfarbe 1
+            {/* Spielerinfo wie eine Anzeigetafel im Fussball: «Spieler 1  2 : 1  Spieler 2»
+                — eine Zeile statt zwei Kästchen, damit das Spielfeld Platz hat.
+                Spielfarbe als Fläche und Punkt, die Zahl bleibt in --text: Spielfarbe 1
                 (Budapest: Rosa) erreicht als Schrift auf Weiss nur 2:1 */}
-            <div className={`${CARD} p-4 sm:p-5 mb-8`}>
-              <div className="flex justify-around items-center gap-3">
-                {[1, 2].map((n) => (
-                  <div key={n} className={`spieler text-center px-4 py-3 rounded-lg transition-colors ${currentPlayer === n && !isGameComplete ? `dran-${n}` : ''}`}>
-                    <div className="flex items-center justify-center gap-2">
-                      <span className={`punkt punkt-${n}`} />
-                      {nameField(n)}
-                    </div>
-                    <div className="text-3xl font-bold">{scores[`player${n}`]}</div>
-                  </div>
-                ))}
+            <div className={`${CARD} px-3 py-2 sm:px-4 mb-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4`}>
+              {[1, 2].map((n) => (
+                <div key={n} className={`spieler flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors min-w-0 ${
+                  n === 1 ? 'justify-self-end' : 'justify-self-start col-start-3 row-start-1 flex-row-reverse'
+                } ${currentPlayer === n && !isGameComplete ? `dran-${n}` : ''}`}>
+                  <span className={`punkt punkt-${n}`} />
+                  {nameField(n)}
+                </div>
+              ))}
+              <div className="col-start-2 row-start-1 text-3xl sm:text-4xl font-bold tabular-nums whitespace-nowrap">
+                {scores.player1}<span className="text-text-3 mx-2">:</span>{scores.player2}
               </div>
             </div>
 
             {/* Spielfeld */}
-            <div className="board mb-8 max-w-4xl mx-auto" style={{ '--cols': cols, '--cols-sm': colsSm }}>
+            <div ref={boardRef} className="board mb-6" style={{ '--cols': board.cols, ...(board.width
+              // Mittig zur Spalte, auch wenn das Feld breiter ist als sie
+              ? { width: `${board.width}px`, marginLeft: `calc(50% - ${board.width / 2}px)` } : {}) }}>
               {fontProbe}
               {cards.map((card, i) => {
                 const matched = matchedPairs.includes(card.pairId);
@@ -2238,21 +2567,17 @@
                   <div
                     key={card.id}
                     onClick={() => handleCardClick(card)}
-                    className={`aspect-[3/2] cursor-pointer transition-all duration-300 transform ${
+                    className={`platz aspect-[3/2] cursor-pointer transition-all duration-300 transform ${
                       !flipped ? 'hover:scale-105' : ''
                     }`}
                   >
                     <div ref={i === 0 ? tileRef : null} className={`w-full h-full rounded-xl flex items-center justify-center overflow-hidden p-2 sm:p-3 text-sm sm:text-lg font-bold text-center transition-colors duration-300 ${
-                      flipped
-                        ? matched
-                          ? 'karte-paar'
-                          : card.type === 'question'
-                          ? 'karte-frage'
-                          : 'karte-antwort'
-                        : 'karte-ruecken'
+                      !flipped ? 'karte-ruecken'
+                        : matched ? `karte-${foundBy[card.pairId]}`
+                        : `karte-${currentPlayer} offen`
                     }`}>
                       {flipped ? (
-                        <FitText content={card.content} size={fontSizeFor(card.content)} />
+                        <FitText content={card.content} fit={fontSizeFor(card.content)} />
                       ) : (
                         '?'
                       )}
@@ -2364,13 +2689,90 @@
       const editMemory = (memory) => { location.hash = withLang('#edit=' + memory.id); };
       const newMemory = (dir) => { location.hash = withLang('#new=' + encodeURIComponent(dir || '')); };
 
-      // Ändern + speichern in einem Schritt; Funktions-Update, damit Handler
-      // nie einen veralteten Stand einfangen (Drag&Drop-Listener läuft dauerhaft)
-      const updateStore = (fn) => setStore((prev) => {
-        const next = fn(prev);
-        saveStore(next);
-        return next;
-      });
+      // Der Store zum Nachschlagen ausserhalb des Renderns: Handler fangen so
+      // nie einen veralteten Stand ein (Drag&Drop-Listener läuft dauerhaft),
+      // und was aus dem Ordner kommt, wird fertig berechnet statt in einem
+      // setStore-Updater — ein Updater darf mehrfach laufen oder verworfen werden.
+      const storeRef = useRef(store);
+      storeRef.current = store;
+      // Ein Weg, den Store zu ändern: speichern, Ref nachziehen, rendern.
+      const commit = (next) => { saveStore(next); storeRef.current = next; setStore(next); };
+      const updateStore = (fn) => commit(fn(storeRef.current));
+
+      // ---- Ordner auf der Platte (s. Abschnitt oben) ----
+      const [dir, setDir] = useState({ handle: null, status: dirSupported ? 'none' : 'unsupported' });
+      // Der Ordner, der gerade gelten soll: ein Auftrag, der erst nach dem
+      // Trennen fertig wird, erkennt sich daran als überholt.
+      const wanted = useRef(null);
+      // Der Stand, den der Ordner zuletzt gesehen hat: mirrorDir schreibt nur
+      // die Differenz dazu. Was vom Ordner kommt, wird darauf gesetzt statt
+      // zurückgeschrieben — sonst bügelte die App jede von Hand geschriebene
+      // Datei in ihr eigenes Format.
+      const mirrored = useRef(null);
+      // Alle Ordner-Zugriffe hintereinander: ein Nachlesen darf nicht in ein
+      // halb geschriebenes Memory hineinlesen.
+      const queue = useRef(Promise.resolve());
+      const enqueue = (job) => (queue.current = queue.current.then(job).catch((e) => {
+        console.error(e);
+        if (wanted.current) setDir((d) => ({ ...d, status: 'error' })); // nach dem Trennen schweigen
+      }));
+      const takeDisk = (handle, keepAll) => {
+        wanted.current = handle;
+        return enqueue(async () => {
+          const disk = await readDir(handle);
+          if (wanted.current !== handle) return;
+          const { next, onDisk } = fromDisk(storeRef.current, disk, keepAll);
+          mirrored.current = onDisk;
+          // Der Fokus liest bei jedem Fensterwechsel nach; hat sich nichts
+          // getan, soll weder localStorage noch die Liste etwas davon merken.
+          if (JSON.stringify(next) !== JSON.stringify(storeRef.current)) commit(next);
+          setDir((d) => (d.status === 'ok' && d.handle === handle ? d : { handle, status: 'ok' }));
+        });
+      };
+      useEffect(() => {
+        if (!dirSupported) return;
+        loadDirHandle().then(async (handle) => {
+          if (!handle) return;
+          const perm = await handle.queryPermission({ mode: 'readwrite' });
+          if (perm === 'granted') takeDisk(handle, false); else setDir({ handle, status: 'prompt' });
+        });
+      }, []);
+      useEffect(() => {
+        if (dir.status !== 'ok' || !mirrored.current || mirrored.current === store) return;
+        const base = mirrored.current;
+        mirrored.current = store;
+        // Nicht geschrieben heisst nicht gespiegelt: nach einem Fehler holt
+        // sonst kein späterer Lauf die Änderung nach.
+        enqueue(() => (wanted.current !== dir.handle ? null : mirrorDir(dir.handle, base, store))
+          .catch((e) => { mirrored.current = base; throw e; }));
+      }, [store, dir]);
+      // Im Finder abgelegte oder gelöschte Dateien erscheinen beim Wechsel
+      // zurück ins Fenster.
+      useEffect(() => {
+        if (dir.status !== 'ok') return;
+        const onFocus = () => takeDisk(dir.handle, false);
+        window.addEventListener('focus', onFocus);
+        return () => window.removeEventListener('focus', onFocus);
+      }, [dir.status, dir.handle]);
+      const connectDir = async () => {
+        let handle;
+        try { handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'mymemory' }); }
+        catch { return; } // abgebrochen
+        await saveDirHandle(handle);
+        takeDisk(handle, true);
+      };
+      // Kein `keepAll`: der Ordner ist die Wahrheit. Memories, die nur im
+      // Browser entstanden sind, bleiben trotzdem (sie tragen kein `disk`).
+      const reconnectDir = async () => {
+        try {
+          if ((await dir.handle.requestPermission({ mode: 'readwrite' })) === 'granted') takeDisk(dir.handle, false);
+        } catch { setDir((d) => ({ ...d, status: 'error' })); }
+      };
+      const disconnectDir = () => { wanted.current = null; saveDirHandle(null); mirrored.current = null; setDir({ handle: null, status: 'none' }); };
+      const dirApi = {
+        status: dir.status, name: dir.handle ? dir.handle.name : '',
+        connect: connectDir, reconnect: reconnectDir, disconnect: disconnectDir, refresh: () => takeDisk(dir.handle, false),
+      };
 
       // Die eine Regel fürs Ablegen: das alte Exemplar raus, das neue rein,
       // sortiert bleiben. Beide Wege (Speichern, Import) gehen hier durch.
@@ -2472,7 +2874,7 @@
           <Selection
             own={own} folders={folders}
             onOpen={openMemory} onEdit={editMemory} onNew={newMemory}
-            onImport={importMemory} onDelete={deleteMemory} folderApi={folderApi}
+            onImport={importMemory} onDelete={deleteMemory} folderApi={folderApi} dir={dirApi}
           />
         );
     };

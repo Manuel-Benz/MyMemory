@@ -14,6 +14,20 @@ Dazugekommen:
 - **Ordner** wie in MyKahoot: beliebig tief, anlegen/umbenennen/löschen (nur
   leer), Umhängen von Memories und Ordnern per Drag & Drop, Dateien direkt auf
   einen Ordner ziehbar. Gespeichert wird neu `{ memories, folders }`.
+- **Ordner auf dem Computer** wie in MyVoci (Chrome/Edge): unter der Liste
+  «Ordner wählen», danach liegen die Memories als `.txt` dort (Unterordner =
+  Ordner), Änderungen im Finder kommen beim Fensterwechsel herein.
+- **Spielfarben pro Spieler**: offene Karten mit Rand in der Farbe des Spielers
+  am Zug, gefundene Paare behalten die Farbe dessen, der sie fand.
+- **Umbruch**: erst ganze Wörter (Schrift kleiner), dann Silbentrennung, erst
+  zuletzt mitten im Wort. Wörter ab 14 Buchstaben dürfen gleich getrennt
+  werden, sonst zwängt ein einziges Kompositum das ganze Feld klein.
+- **Spielfeld passt ins Fenster** (`useBoardLayout`): für jede Spaltenzahl die
+  grösste Kachel, die Breite und Höhe erlauben; leere Plätze kosten etwas, die
+  angebrochene Reihe steht mittig (flex-wrap). Unter 110 px Kachel wird
+  gescrollt (Handy: 3 Spalten). Das Feld darf breiter sein als die Spalte.
+  Schriftleiter neu bis 32 px für grosse Kacheln.
+- **Anzeigetafel** im Spiel: «Spieler 1  2 : 1  Spieler 2» in einer Zeile.
 - **Längere Einträge**: die Kartenschrift verkleinert sich stufenweise, bis der
   Text in die Kachel passt (24–14 px, auf dem Handy 18–10 px). Gemessen wird
   **einmal für alle Karten** in einer unsichtbaren Kopie einer Kachel: der
