@@ -64,6 +64,11 @@ Deploy = `git push` auf `main` (GitHub Pages).
   oben/rechts wie MyKahoot) und die
   Spalte wird schmaler (`COLUMN`/`SETTINGS_DOCK`), darunter klappt das Kästchen über den
   Inhalt. Nie schiebt es die Spalte nach unten.
+- **Spielfeld** (`useBoardLayout`): Spaltenzahl und Breite rechnet ein Hook aus Fensterbreite
+  und -höhe (alles ohne Scrollen, sonst ab Kachel < `MIN_TILE` scrollen). Das Feld darf
+  breiter sein als `COLUMN.wide` (zentriert per `margin-left: calc(50% − w/2)`); `.board`
+  ist flex-wrap, damit die angebrochene letzte Reihe mittig steht. Die Schriftmessung
+  (`useSharedFontSize`) folgt der Kachelgrösse per ResizeObserver.
 - **Rand oben** (wie Dschungel/Blut in MyKahoot): Hell = Pixel, Dunkel = Neuronen-Netz.
   `hintergrund/*.svg` aus `tools/make-hintergrund.py`, je Farbschicht eine Maske, gefüllt
   mit Schema-Tokens (`--akzent`, `--rad-N`, `--spiel-3`) — macht jedes Schema mit. Das
