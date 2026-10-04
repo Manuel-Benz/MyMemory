@@ -71,7 +71,22 @@ Dazugekommen:
 - **Symbole** als einfache 2D-Strichzeichnungen (SVG) statt Emoji — die kamen je
   nach System als bunte 3D-Bildchen.
 
+- [x] **My-Designsystem** (04.10.2026, Auftrag `~/MySuite/auftraege/03-MyMemory.md`):
+  Tokens/Schemen aus `design/` (Kopie aus MySuite), Budapest/Aubergine, Hell und
+  Dunkel, kompakte Liste mit Ordnern an der Linie, Knöpfe/Umschalter/Symbolknöpfe
+  nach DESIGN.md, Spielfarben statt Rot/Blau, Elefant als Favicon/App-Icon und im
+  Leerzustand. In den Einstellungen neu: Farbschema, Akzentfarbe, Hell/Dunkel/System.
+  Ohne Kopfleiste (wie MyKahoot). Details und Abweichungen: `CLAUDE.md`.
+- [x] **CLAUDE.md** angelegt.
+
 ## Backlog
+
+- **Erzwungenes Hell/Dunkel** (MySuite): `my-schemen.css` wählt Akzent und Töne nur
+  per `prefers-color-scheme` — wer «Hell» auf einem dunklen Mac erzwingt, bekommt den
+  Dunkel-Akzent (Aubergine #A17BBC, weisse Schrift darauf nur 3.5:1). Lösung gehört
+  nach MySuite (Schemen auch an `data-modus` hängen), nicht hierher.
+- **Zissou + eigener Ton** (MySuite): `[data-schema="zissou"]` setzt `--akzent-ink`
+  immer dunkel, auch wenn ein dunkler Ton (Tiefsee, Rost …) der Akzent ist.
 
 - **ZIP wieder einlesen**: der Import kennt nur `.txt`; ein aus dem Export
   gezogenes ZIP samt Ordnern zurückzuholen wäre das fehlende Gegenstück.

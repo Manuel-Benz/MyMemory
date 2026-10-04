@@ -26,6 +26,10 @@ sie am Ende (`…#m=…&l=de`) — also auch Direktlink und QR-Code. Die Klasse 
 das Memory in der Sprache, in der du geteilt hast, und kann im Spiel trotzdem
 umschalten; die Wahl merkt sich dann ihr Browser.
 
+**Aussehen** (My-Designsystem, wie die anderen My-Apps): Standard ist «Grand
+Budapest Hotel» mit Aubergine. In den Einstellungen lassen sich Farbschema,
+Akzentfarbe und Hell/Dunkel/System wählen — der Browser merkt sich die Wahl.
+
 ## Memory erstellen
 
 Alles steckt im aufklappbaren Kästchen **„Memory erstellen"**:
