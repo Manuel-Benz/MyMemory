@@ -8,13 +8,16 @@ eingefärbt wird mit Tokens des Schemas (--akzent, --rad-N), damit der Rand jede
 Farbschema mitmacht. Darum enthält eine Datei nur Alpha, keine Farbe.
 Kachelbreite 1200 px, nahtlos in x (Kanten werden um ±1200 gespiegelt gezeichnet).
 
-    python3 tools/make-hintergrund.py   # danach V im Skript unter <body> in index.html hochzählen
+    python3 tools/make-hintergrund.py   # schreibt Masse + Version selbst nach index.html
 """
+import hashlib
 import math
+import re
 import random
 from pathlib import Path
 
 W = 1200
+HOEHE = {'neuro': 460, 'pixel': 300}  # Kachelhöhe je Satz
 out = Path(__file__).resolve().parent.parent / 'hintergrund'
 out.mkdir(exist_ok=True)
 
@@ -38,7 +41,7 @@ def wrapped(x, margin):
 # Rad-Farben. Dichte und Deckkraft nehmen mit der Höhe ab; dazu hängen einzelne lange
 # Axone wie Lianen herab, damit der Rand nach unten ausfranst statt abzubrechen.
 def neuro():
-    H = 460
+    H = HOEHE['neuro']
     rnd = random.Random(11)
     layers = 7
     parts = [[] for _ in range(layers)]
@@ -118,7 +121,7 @@ def neuro():
 # Raster 16 px. Oben zwei volle Reihen, darunter fällt die Wahrscheinlichkeit; einzelne
 # Spalten «tropfen» weiter hinab. Schicht 0 = --akzent (der Grossteil), 1..3 = Rad-Farben.
 def pixel():
-    H, Q = 300, 16
+    H, Q = HOEHE['pixel'], 16
     rnd = random.Random(5)
     parts = [[] for _ in range(4)]
     drip = {cx: rnd.random() ** 3 * 0.6 for cx in range(W // Q)}  # Zusatztiefe je Spalte
@@ -141,5 +144,15 @@ def pixel():
 
 neuro()
 pixel()
+
+# Masse und Version gehen von hier direkt in index.html (zwischen den Marken «rand-daten»),
+# damit dort nichts von Hand nachzuziehen ist; V ändert sich mit dem Inhalt der Dateien.
+V = hashlib.md5(b''.join(f.read_bytes() for f in sorted(out.glob('*.svg')))).hexdigest()[:8]
+html = out.parent / 'index.html'
+daten = f"const V = '{V}', W = {W}, H = {HOEHE};"
+neu, n = re.subn(r'(// <rand-daten>\n\s*).*?(\n\s*// </rand-daten>)', lambda m: m[1] + daten + m[2],
+                 html.read_text(encoding='utf-8'), flags=re.S)
+assert n == 1, 'Marken «rand-daten» in index.html nicht gefunden'
+html.write_text(neu, encoding='utf-8')
 for f in sorted(out.iterdir()):
     print(f'{f.name}: {f.stat().st_size // 1024} KB')

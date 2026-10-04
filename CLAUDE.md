@@ -62,9 +62,9 @@ Deploy = `git push` auf `main` (GitHub Pages).
   Inhalt. Nie schiebt es die Spalte nach unten.
 - **Rand oben** (wie Dschungel/Blut in MyKahoot): Hell = Pixel, Dunkel = Neuronen-Netz.
   `hintergrund/*.svg` aus `tools/make-hintergrund.py`, je Farbschicht eine Maske, gefüllt
-  mit Schema-Tokens (`--akzent`, `--rad-N`, `--spiel-3`) — macht jedes Schema mit. Nach
-  Neuerzeugung `V` im Skript unter `<body>` (dort steht auch die Farbzuordnung der Schichten)
-  hochzählen. Frei stehender Text auf dem Rand (auch Titel, Lade-/Fehlertext): `.frei`;
+  mit Schema-Tokens (`--akzent`, `--rad-N`, `--spiel-3`) — macht jedes Schema mit. Das
+  Skript schreibt Version `V` und Kachelmasse selbst in `index.html` (Marken «rand-daten»);
+  die Farbzuordnung der Schichten steht im Skript unter `<body>`. Frei stehender Text auf dem Rand (auch Titel, Lade-/Fehlertext): `.frei`;
   Knöpfe darauf: `.auf-rand` (deckend, Hover als Schleier).
 - **Beispiele ausblendbar** (`mymemory_beispiele`, `useExamplesShown`): Auge-Knopf an der
   Liste, zurück über die Einstellungen.

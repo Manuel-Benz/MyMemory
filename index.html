@@ -134,10 +134,9 @@
        8-Bit-Pixel, Dunkel = Neuronen-Netz. Jede Farbschicht ist eine Maske aus
        hintergrund/ (tools/make-hintergrund.py), gefüllt mit einem Token des Schemas —
        so macht der Rand jedes Farbschema mit. Hinter allem (z-index −1), fest am Fenster. */
-    .rand { position: fixed; inset: 0 0 auto 0; height: 460px; z-index: -1; pointer-events: none; }
+    .rand { position: fixed; inset: 0 0 auto 0; height: var(--h); z-index: -1; pointer-events: none; }
     .rand > i { position: absolute; inset: 0; background: var(--c);
-      -webkit-mask: var(--m) left top / 1200px auto repeat-x; mask: var(--m) left top / 1200px auto repeat-x; }
-    .rand-hell { height: 300px; } /* wie die Pixel-Kacheln, sonst malt der Browser leere 160 px mit */
+      -webkit-mask: var(--m) left top / var(--w) auto repeat-x; mask: var(--m) left top / var(--w) auto repeat-x; }
     .rand-dunkel { display: none;
       background: radial-gradient(ellipse 60% 70% at 50% 0%, color-mix(in srgb, var(--akzent) 16%, transparent), transparent 70%); }
     :root[data-modus="dunkel"] .rand-dunkel { display: block; }
@@ -221,17 +220,21 @@
   <div class="rand rand-hell" aria-hidden="true"></div>
   <div class="rand rand-dunkel" aria-hidden="true"></div>
   <script>
-    // Datei i von tools/make-hintergrund.py trägt die i-te Farbe. V nach jedem Lauf des
-    // Skripts hochzählen, sonst hängt im Browser-Cache eine alte Schicht neben neuen.
+    // Datei i von tools/make-hintergrund.py trägt die i-te Farbe. Version (gegen alte
+    // Schichten im Browser-Cache) und Kachelmasse schreibt das Skript selbst hierher.
     // Läuft vor dem ersten Zeichnen, nichts blitzt auf.
     (() => {
-      const V = 4;
+      // <rand-daten>
+      const V = 'fa002975', W = 1200, H = {'neuro': 460, 'pixel': 300};
+      // </rand-daten>
       const schichten = {
         hell: ['pixel', ['--akzent', '--rad-1', '--rad-6', '--spiel-3']],
         dunkel: ['neuro', ['--akzent', '--rad-1', '--rad-2', '--spiel-3', '--rad-5', '--rad-6', '--rad-7']],
       };
       for (const [modus, [name, farben]] of Object.entries(schichten)) {
-        document.querySelector('.rand-' + modus).innerHTML = farben
+        const rand = document.querySelector('.rand-' + modus);
+        rand.style.cssText = `--h: ${H[name]}px; --w: ${W}px`;
+        rand.innerHTML = farben
           .map((farbe, i) => `<i style="--c: var(${farbe}); --m: url(hintergrund/${name}-${i}.svg?v=${V})"></i>`).join('');
       }
     })();
