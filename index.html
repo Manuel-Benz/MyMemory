@@ -4,15 +4,156 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MyMemory</title>
-  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="design/icons/memory.svg" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <!-- My-Designsystem: Kopie aus ~/MySuite (design/HERKUNFT.txt), hier nie ändern -->
+  <link rel="stylesheet" href="design/css/my-tokens.css" />
+  <link rel="stylesheet" href="design/css/my-schemen.css" />
+  <script>
+    // Schema, Ton und Hell/Dunkel stehen am <html>, bevor irgendetwas
+    // gezeichnet wird — sonst blitzt beim Laden kurz das Standardschema auf.
+    // Dieselben Schlüssel liest die App unten (LOOK_KEY, MODUS_KEY).
+    (() => {
+      const read = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+      const saved = read('mymemory_look');
+      const look = saved && ['fox', 'budapest', 'moonrise', 'zissou', 'isle'].includes(saved.schema)
+        ? saved : { schema: 'budapest', ton: 3 }; // = DEFAULT_LOOK
+      const modus = read('mymemory_modus');
+      const html = document.documentElement;
+      html.dataset.schema = look.schema;
+      const ton = look.ton;
+      if (ton) html.dataset.ton = ton;
+      if (modus === 'hell' || modus === 'dunkel') html.dataset.modus = modus;
+    })();
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind kennt nur noch die Farben des Designsystems: eine vergessene
+    // Klasse wie `text-red-600` erzeugt gar keinen Stil statt einer festen Farbe.
+    tailwind.config = {
+      theme: {
+        colors: {
+          transparent: 'transparent',
+          current: 'currentColor',
+          grund: 'var(--grund)',
+          karte: 'var(--karte)',
+          linie: 'var(--linie)',
+          hover: 'var(--hover)',
+          zeile: 'var(--zeile)',
+          text: { DEFAULT: 'var(--text)', 2: 'var(--text-2)', 3: 'var(--text-3)' },
+          akzent: { DEFAULT: 'var(--akzent)', weich: 'var(--akzent-weich)', text: 'var(--akzent-text)', ink: 'var(--akzent-ink)' },
+          rot: 'var(--rot-text)',
+          orange: 'var(--orange-text)',
+        },
+        borderRadius: {
+          none: '0',
+          s: 'var(--radius-s)',
+          DEFAULT: 'var(--radius)',
+          lg: 'var(--radius)',
+          xl: 'var(--radius-l)',
+          full: 'var(--radius-pille)',
+        },
+      },
+    };
+  </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
   <script defer src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
-  <style>
+  <style type="text/tailwindcss">
+    /* Über Tailwind verarbeitet, sonst läge dessen Preflight (button { background:
+       transparent }) hinter diesen Regeln und gewönne. Komponenten in @layer
+       components, damit Tailwind-Klassen sie im Einzelfall noch übersteuern. */
+    @layer base {
+    /* Eigene Werte heissen bewusst anders als die Tokens (--akzent, --karte, --radius …):
+       gleichnamig neu definiert, würden sie das Schema still überschreiben.
+       Abgeleitete Flächen mischen mit var(--karte) — so machen sie Hell/Dunkel mit. */
+    /* Erzwungenes Hell/Dunkel setzt my-tokens.css am [data-modus] selbst */
+    :root:not([data-modus]) { color-scheme: light dark; }
+    :root {
+      /* Signalfarben als Schrift: Orange/Grün erreichen auf Weiss nur ~3:1 */
+      --rot-text: color-mix(in oklab, var(--rot) 80%, var(--text));
+      --orange-text: color-mix(in oklab, var(--orange) 60%, var(--text));
+      /* Spiel: Spieler 1 + Vorderseite, Spieler 2 + Rückseite. Spielfarbe 2 bleibt
+         aussen vor — im Schema Budapest ist sie identisch mit dem Akzent (Aubergine). */
+      --farbe-p1: var(--spiel-1);
+      --farbe-p2: var(--spiel-4);
+      --flaeche-p1: color-mix(in oklab, var(--farbe-p1) 24%, var(--karte));
+      --flaeche-p2: color-mix(in oklab, var(--farbe-p2) 24%, var(--karte));
+      --flaeche-paar: color-mix(in oklab, var(--gruen) 26%, var(--karte));
+      --schleier: color-mix(in srgb, var(--leiste) 55%, transparent);
+    }
+    body {
+      background: var(--grund); color: var(--text);
+      font-family: var(--schrift); font-size: 16px; line-height: 1.55;
+    }
+    h1, h2 { letter-spacing: -0.02em; }
+    }
+    @layer components {
+    .kopf { font-size: 13px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); }
+    .kachel { background: var(--karte); border: 1px solid var(--linie); border-radius: var(--radius-l); }
+
+    /* Knöpfe (DESIGN.md): primär, sekundär, neutral */
+    .knopf { border-radius: var(--radius); font-weight: 600; padding: 10px 20px; transition: background .15s, border-color .15s, opacity .15s; }
+    .knopf-1 { background: var(--akzent); color: var(--akzent-ink); }
+    .knopf-1:hover { background: color-mix(in oklab, var(--akzent) 88%, var(--text)); }
+    .knopf-2 { background: var(--akzent-weich); color: var(--akzent-text); }
+    .knopf-2:hover { background: color-mix(in oklab, var(--akzent) 24%, var(--karte)); }
+    .knopf-n { background: transparent; color: var(--text); border: 1px solid var(--linie); }
+    .knopf-n:hover { background: var(--hover); }
+    .knopf:disabled { opacity: .45; cursor: not-allowed; }
+    /* Quadratische Symbolknöpfe, ruhig bis zum Darüberfahren */
+    .symbol { flex: none; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+      border-radius: var(--radius); color: var(--text-2); background: transparent; transition: background .15s, color .15s; }
+    .symbol:hover { background: var(--hover); color: var(--text); }
+    .symbol.gefahr:hover { color: var(--rot-text); }
+    /* Umschalter (Sprache, Darstellung, Schema) */
+    .umschalter { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1px solid var(--linie); border-radius: var(--radius); }
+    .umschalter button { padding: 4px 12px; border-radius: 7px; color: var(--text-2); font-size: 15px; }
+    .umschalter button:hover { background: var(--hover); }
+    .umschalter button[aria-pressed="true"] { background: var(--akzent-weich); color: var(--akzent-text); font-weight: 600; }
+    .farbtupfer { width: 26px; height: 26px; border-radius: var(--radius-pille); background: var(--tupfer);
+      outline-offset: 2px; transition: transform .1s; }
+    .farbtupfer:hover { transform: scale(1.12); }
+    .farbtupfer[aria-pressed="true"] { outline: 2px solid var(--text); }
+    .feld { padding: 8px 12px; border: 1px solid var(--linie); border-radius: var(--radius); background: var(--karte); color: var(--text); }
+    .feld:focus { outline: none; border-color: var(--akzent); box-shadow: 0 0 0 3px var(--akzent-weich); }
+    .feld::placeholder { color: var(--text-3); }
+    .kuerzel { padding: 0 6px; border-radius: var(--radius-s); background: var(--hover); color: var(--text-2);
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    code { background: var(--hover); padding: 0 4px; border-radius: var(--radius-s); }
+
+    /* Kompakte Liste (DESIGN.md, Listen): keine Fläche, nur Hover */
+    .liste-zeile { display: flex; align-items: center; gap: 2px; padding: 5px 6px 5px 10px; margin-bottom: 2px;
+      border-radius: var(--radius); transition: background .15s; }
+    .liste-zeile:hover { background: var(--hover); }
+    .liste-name { flex: 0 1 19rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-weight: 600; text-align: left; }
+    /* Die Zahl kürzt nie — auf dem Handy gibt der Name nach */
+    .liste-zahl { flex: 1 0 auto; padding: 0 8px; color: var(--text-3); white-space: nowrap; }
+    @media (max-width: 640px) { .symbol { width: 30px; height: 30px; } .liste-zahl { padding: 0 4px; font-size: 14px; } }
+    .liste-ordner { margin-left: 14px; padding-left: 10px; border-left: 2px solid var(--linie); }
+    .ablage { border-radius: var(--radius); outline: 2px dashed transparent; outline-offset: -2px; transition: background .15s, outline-color .15s; }
+    .ablage.ziel { background: var(--akzent-weich); outline-color: var(--akzent); }
+
+    /* Spielfeld */
+    .spieler { background: var(--zeile); border: 2px solid transparent; }
+    .spieler.dran-1 { background: var(--flaeche-p1); border-color: var(--farbe-p1); }
+    .spieler.dran-2 { background: var(--flaeche-p2); border-color: var(--farbe-p2); }
+    .punkt { display: inline-block; width: 10px; height: 10px; border-radius: var(--radius-pille); flex: none; }
+    .punkt-1 { background: var(--farbe-p1); }
+    .punkt-2 { background: var(--farbe-p2); }
+    .karte-ruecken { background: var(--akzent); color: var(--akzent-ink); }
+    .karte-ruecken:hover { background: color-mix(in oklab, var(--akzent) 85%, var(--text)); }
+    .karte-frage { background: var(--flaeche-p1); color: var(--text); }
+    .karte-antwort { background: var(--flaeche-p2); color: var(--text); }
+    .karte-paar { background: var(--flaeche-paar); color: var(--text); }
+    /* QR-Code: schwarz auf weiss, sonst liest ihn kein Handy — auch im Dunkelmodus */
+    .qr { background: #FFFFFF; padding: 8px; border-radius: var(--radius); }
+    }
+
     /* Spielfeld: Spaltenzahl passt sich der Kartenzahl an (immer ALLE Paare der Datei) */
     .board { display: grid; gap: .75rem; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
     @media (max-width: 640px) { .board { grid-template-columns: repeat(var(--cols-sm), minmax(0, 1fr)); gap: .5rem; } }
@@ -35,6 +176,39 @@
     };
     const writeLocal = (key, value) => {
       try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+    };
+
+    // ---------- Farbschema und Hell/Dunkel (My-Designsystem) ----------
+    // Die Werte stehen in design/css/my-schemen.css; hier nur, was zur Wahl
+    // steht. Gesetzt wird als data-schema/data-ton/data-modus am <html> — beim
+    // Laden schon im <head> (gleiche Schlüssel), damit nichts aufblitzt.
+    const LOOK_KEY = 'mymemory_look';
+    const MODUS_KEY = 'mymemory_modus';
+    const DEFAULT_LOOK = { schema: 'budapest', ton: 3 }; // Aubergine
+    const SCHEMES = [
+      { id: 'fox', name: 'Fantastic Mr. Fox', tones: ['Azid-Himmelblau', 'Dunkles Petrol', 'Moos-Oliv', 'Kürbis', 'Rost-Karmin', 'Schokolade', 'Pflaume', 'Altrosa', 'Bronze-Senf'] },
+      { id: 'budapest', name: 'Grand Budapest Hotel', tones: ['Indigoblau', 'Lobby-Violett', 'Aubergine', 'Orchidee', 'Magenta', 'Mauve-Taupe', "Mendl's Zuckerrosa", 'Himbeere', 'Messing-Gold'] },
+      { id: 'moonrise', name: 'Moonrise Kingdom', tones: ['Oliv-Khaki', 'Limette', 'Gras', 'Tanne', 'Seegrün', 'Petrol', 'Navy', 'Schieferblau', 'Suzy-Rot'] },
+      { id: 'zissou', name: 'The Life Aquatic', tones: ['Zissou-Rot', 'Orange', 'Gold', 'Oliv', 'Meerblau', 'Tiefsee', 'Rost', 'Mützenrosa', 'Petrol'] },
+      { id: 'isle', name: 'Isle of Dogs', tones: ['Sand', 'Kaffee', 'Rost', 'Taupe', 'Lavendel', 'Stroh', 'Moos', 'Schiefer', 'Altrosa'] },
+    ];
+    const MODI = ['system', 'hell', 'dunkel'];
+
+    const loadLook = () => {
+      const look = readLocal(LOOK_KEY);
+      return look && SCHEMES.some((x) => x.id === look.schema) ? look : DEFAULT_LOOK;
+    };
+    const applyLook = (look) => {
+      writeLocal(LOOK_KEY, look);
+      const html = document.documentElement;
+      html.dataset.schema = look.schema;
+      if (look.ton) html.dataset.ton = look.ton; else delete html.dataset.ton;
+    };
+    const loadModus = () => (MODI.includes(readLocal(MODUS_KEY)) ? readLocal(MODUS_KEY) : 'system');
+    const applyModus = (modus) => {
+      writeLocal(MODUS_KEY, modus);
+      const html = document.documentElement;
+      if (modus === 'system') delete html.dataset.modus; else html.dataset.modus = modus;
     };
 
     // ---------- Sprache (wie in MyKahoot) ----------
@@ -62,7 +236,7 @@
     // hier einmal ein, wie sie sich neu zeichnen lässt.
     let redrawLang = () => {};
 
-    const code = (x) => <code className="bg-gray-100 px-1 rounded">{x}</code>;
+    const code = (x) => <code>{x}</code>;
 
     const I18N = {
       de: {
@@ -70,6 +244,11 @@
         subtitle: 'Wähle ein Memory und finde die Paare!',
         settings: 'Einstellungen',
         language: 'Sprache',
+        look: 'Darstellung',
+        modi: { system: 'Wie das System', hell: 'Hell', dunkel: 'Dunkel' },
+        scheme: 'Farbschema',
+        tone: 'Akzentfarbe',
+        toneDefault: 'Akzent des Schemas',
         createTitle: 'Memory erstellen',
         steps: (
           <>
@@ -93,6 +272,7 @@
         emptyList: 'Noch nichts da — oben ein Memory erstellen oder eine Datei hierher ziehen.',
         storedHint: 'Gespeichert in diesem Browser. Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze Memory. Memories und Ordner lassen sich per Ziehen umhängen.',
         nPairs: (n) => `${n} ${n === 1 ? 'Paar' : 'Paare'}`,
+        nMemories: (n) => `${n} ${n === 1 ? 'Memory' : 'Memories'}`,
         // Knöpfe und Rückmeldungen
         newMemory: 'Neues Memory',
         newMemoryHere: 'Neues Memory in diesem Ordner',
@@ -184,6 +364,11 @@
         subtitle: 'Pick a memory and find the pairs!',
         settings: 'Settings',
         language: 'Language',
+        look: 'Appearance',
+        modi: { system: 'Like the system', hell: 'Light', dunkel: 'Dark' },
+        scheme: 'Colour scheme',
+        tone: 'Accent colour',
+        toneDefault: 'Accent of the scheme',
         createTitle: 'Create a memory',
         steps: (
           <>
@@ -207,6 +392,7 @@
         emptyList: 'Nothing here yet — create a memory above or drag a file here.',
         storedHint: 'Stored in this browser. To share: direct link or QR code — the whole memory is inside it. Memories and folders can be moved by dragging.',
         nPairs: (n) => `${n} ${n === 1 ? 'pair' : 'pairs'}`,
+        nMemories: (n) => `${n} ${n === 1 ? 'memory' : 'memories'}`,
         newMemory: 'New memory',
         newMemoryHere: 'New memory in this folder',
         newFolder: 'New folder',
@@ -924,16 +1110,19 @@
     );
 
     // ---------- Gemeinsame Bausteine ----------
-    const SCREEN = 'min-h-screen bg-gradient-to-br from-red-50 to-blue-50';
-    const BTN_PRIMARY = 'bg-gradient-to-r from-red-500 to-blue-500 text-white rounded-lg font-semibold hover:from-red-600 hover:to-blue-600 transition-all shadow-lg';
-    const BTN_SECONDARY = 'bg-gray-100 text-gray-600 rounded-lg font-semibold hover:bg-gray-200 transition-all';
-    const CARD = 'bg-white rounded-lg shadow-lg';
-    const LABEL = 'text-xs uppercase tracking-wide text-gray-400';
-    const INPUT = 'px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-blue-400';
+    // Farben, Knöpfe und Flächen kommen aus dem My-Designsystem (Klassen im
+    // <style> oben, Werte aus design/css) — hier nur noch die Zusammenstellung.
+    const SCREEN = 'min-h-screen';
+    const BTN_PRIMARY = 'knopf knopf-1';
+    const BTN_SECONDARY = 'knopf knopf-2';
+    const BTN_NEUTRAL = 'knopf knopf-n';
+    const CARD = 'kachel';
+    const LABEL = 'kopf';
+    const INPUT = 'feld';
 
     const Modal = ({ children, onClose }) => (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-        <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'var(--schleier)' }} onClick={onClose}>
+        <div className="kachel p-6 sm:p-8 max-w-md w-full" style={{ boxShadow: 'var(--schatten)' }} onClick={(e) => e.stopPropagation()}>
           {children}
         </div>
       </div>
@@ -952,20 +1141,20 @@
       };
       return (
         <Modal onClose={onClose}>
-          <p className="text-gray-700 mb-4">{isPrompt ? dialog.label : dialog.text}</p>
+          <p className="mb-4">{isPrompt ? dialog.label : dialog.text}</p>
           {isPrompt && (
             <input
               autoFocus type="text" value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
-              className="w-full mb-4 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+              className={`w-full mb-4 ${INPUT}`}
             />
           )}
           <div className="flex gap-3">
-            <button onClick={onClose} className={`flex-1 px-4 py-2 ${BTN_SECONDARY}`}>
+            <button onClick={onClose} className={`flex-1 ${BTN_NEUTRAL}`}>
               {t('cancel')}
             </button>
-            <button onClick={submit} className={`flex-1 ${BTN_PRIMARY} px-4 py-2`}>
+            <button onClick={submit} className={`flex-1 ${BTN_PRIMARY}`}>
               {dialog.ok || 'OK'}
             </button>
           </div>
@@ -973,9 +1162,11 @@
       );
     };
 
-    const IconButton = ({ onClick, title, hover = 'hover:bg-blue-50', extra = '', children }) => (
-      <button onClick={onClick} title={title}
-        className={`px-3 py-3 bg-white rounded-lg shadow hover:shadow-md transition-all text-gray-500 ${hover} ${extra}`}>
+    // Quadratischer Symbolknopf (DESIGN.md, kompakte Liste); `danger` färbt
+    // beim Darüberfahren rot — für Löschen.
+    const IconButton = ({ onClick, title, danger = false, extra = '', children }) => (
+      <button onClick={onClick} title={title} aria-label={title}
+        className={`symbol ${danger ? 'gefahr' : ''} ${extra}`}>
         {children}
       </button>
     );
@@ -1031,6 +1222,9 @@
         <path d="M4 20h16" />
       </Icon>
     );
+    const ChevronIcon = () => (
+      <Icon><path d="M9 6l6 6-6 6" /></Icon>
+    );
     const PlusIcon = () => (
       <Icon><path d="M12 5v14" /><path d="M5 12h14" /></Icon>
     );
@@ -1061,20 +1255,22 @@
 
       return (
         <Modal onClose={onClose}>
-          <h2 className="text-xl font-bold text-center mb-4 text-gray-800">{title}</h2>
+          <h2 className="text-xl font-bold text-center mb-4">{title}</h2>
           {svg ? (
-            <div className="flex justify-center mb-4 [&>svg]:w-56 [&>svg]:h-56" dangerouslySetInnerHTML={{ __html: svg }} />
+            <div className="flex justify-center mb-4">
+              <div className="qr [&>svg]:w-56 [&>svg]:h-56" dangerouslySetInnerHTML={{ __html: svg }} />
+            </div>
           ) : (
-            <div className="text-center text-red-600 mb-4">
+            <div className="text-center text-rot mb-4">
               {t('qrTooBig')}
             </div>
           )}
-          <div className="text-xs text-gray-400 break-all max-h-16 overflow-y-auto mb-4">{url}</div>
+          <div className="text-xs text-text-3 break-all max-h-16 overflow-y-auto mb-4">{url}</div>
           <div className="flex gap-2">
-            <button onClick={onCopy} className={`flex-1 ${BTN_PRIMARY} px-4 py-2`}>
+            <button onClick={onCopy} className={`flex-1 ${BTN_PRIMARY}`}>
               {t('copyLinkBtn')}
             </button>
-            <button onClick={onClose} className={`px-4 py-2 ${BTN_SECONDARY}`}>
+            <button onClick={onClose} className={BTN_NEUTRAL}>
               {t('close')}
             </button>
           </div>
@@ -1089,23 +1285,63 @@
     // die Übersicht nie und käme sonst nicht an die Sprache.
     const useSettings = () => {
       const [open, setOpen] = useState(false);
+      const [look, setLook] = useState(loadLook);
+      const [modus, setModus] = useState(loadModus);
+      const pickLook = (next) => { setLook(next); applyLook(next); };
+      const pickModus = (next) => { setModus(next); applyModus(next); };
+
       const button = (
         <IconButton onClick={() => setOpen((v) => !v)} title={t('settings')}><SettingsIcon /></IconButton>
       );
+      const toggle = (items, active, pick) => (
+        <div className="umschalter">
+          {items.map(([id, label]) => (
+            <button key={id} onClick={() => pick(id)} aria-pressed={id === active}>{label}</button>
+          ))}
+        </div>
+      );
+      // Ein Tupfer zeigt seine Farbe über `--tupfer`: der Ton liest das
+      // Schema am <html>, der Schema-Tupfer trägt sein eigenes data-schema
+      // und damit dessen Akzent.
+      const swatch = (key, title, color, active, onClick, schema) => (
+        <button
+          key={key} title={title} aria-label={title} aria-pressed={active} onClick={onClick}
+          className="farbtupfer" data-schema={schema} style={{ '--tupfer': color }}
+        />
+      );
+      const scheme = SCHEMES.find((x) => x.id === look.schema);
       const panel = open && (
-        <div className={`${CARD} p-6 mb-8`}>
-          <h2 className="text-lg font-semibold text-gray-700 mb-3">{t('settings')}</h2>
-          <div className="rounded-lg border border-gray-200 p-4">
+        <div className={`${CARD} p-5 mb-6 space-y-4`}>
+          <div>
             <div className={`${LABEL} mb-2`}>{t('language')}</div>
-            <div className="flex gap-2">
-              {LANGS.map((entry) => (
+            {toggle(LANGS.map((l) => [l.id, l.name]), currentLang, changeLang)}
+          </div>
+          <div>
+            <div className={`${LABEL} mb-2`}>{t('look')}</div>
+            {toggle(MODI.map((m) => [m, t('modi')[m]]), modus, pickModus)}
+          </div>
+          <div>
+            <div className={`${LABEL} mb-2`}>{t('scheme')}</div>
+            <div className="flex flex-wrap gap-2">
+              {SCHEMES.map((x) => (
                 <button
-                  key={entry.id} onClick={() => changeLang(entry.id)}
-                  className={`px-4 py-2 ${entry.id === currentLang ? BTN_PRIMARY : BTN_SECONDARY}`}
+                  key={x.id} onClick={() => pickLook({ schema: x.id, ton: DEFAULT_LOOK.schema === x.id ? DEFAULT_LOOK.ton : null })}
+                  aria-pressed={x.id === look.schema}
+                  className={`flex items-center gap-2 ${x.id === look.schema ? BTN_SECONDARY : BTN_NEUTRAL} !px-3 !py-1.5 text-sm`}
                 >
-                  {entry.name}
+                  <span className="punkt" data-schema={x.id} style={{ background: 'var(--akzent)' }} />
+                  {x.name}
                 </button>
               ))}
+            </div>
+          </div>
+          <div>
+            <div className={`${LABEL} mb-2`}>{t('tone')}</div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {swatch('0', t('toneDefault'), 'var(--akzent)', !look.ton, () => pickLook({ ...look, ton: null }), look.schema)}
+              <span className="w-px h-5 bg-linie" />
+              {scheme.tones.map((name, i) => swatch(i + 1, name, `var(--ton-${i + 1})`, look.ton === i + 1,
+                () => pickLook({ ...look, ton: i + 1 })))}
             </div>
           </div>
         </div>
@@ -1311,35 +1547,35 @@
         });
       };
 
+      // Kompakte Liste (DESIGN.md): Name in fester Spalte, die Anzahl direkt
+      // dahinter — so stehen die Zahlen untereinander. Die ganze Zeile startet
+      // das Spiel, die Symbolknöpfe fangen ihren Klick selbst ab.
+      const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
       const row = (memory, deletable) => (
         <div
           key={memory.id}
-          className="flex items-center gap-2 mb-2"
+          onClick={() => onOpen(memory)}
+          className="liste-zeile cursor-pointer"
           {...(deletable ? dragProps({ kind: 'memory', id: memory.id, dir: memory.dir || '' }) : {})}
         >
-          <button
-            onClick={() => onOpen(memory)}
-            className="flex-1 min-w-0 truncate text-left px-4 py-3 bg-white rounded-lg shadow hover:shadow-md hover:bg-red-50 transition-all font-semibold text-gray-800"
-          >
-            {memory.title}
-            {memory.lang && (
-              <span className="ml-2 px-1.5 rounded bg-gray-100 text-xs font-semibold text-gray-500 uppercase align-middle">{memory.lang}</span>
-            )}
-            <span className="ml-2 text-sm font-normal text-gray-400">{t('nPairs', memory.pairs.length)}</span>
-          </button>
-          <IconButton onClick={() => exportOne(memory)} title={t('exportOne')} extra="hidden sm:block"><DownloadIcon /></IconButton>
-          <IconButton onClick={() => copyLink(memory)} title={t('copyLink')}><LinkIcon /></IconButton>
-          <IconButton onClick={() => showQr(memory)} title={t('showQr')}><QrIcon /></IconButton>
+          <button className="liste-name">{memory.title}</button>
+          <span className="liste-zahl">
+            {t('nPairs', memory.pairs.length)}
+            {memory.lang && <span className="kuerzel ml-2 align-[1px]">{memory.lang}</span>}
+          </span>
+          <IconButton onClick={stop(() => exportOne(memory))} title={t('exportOne')} extra="hidden sm:inline-flex"><DownloadIcon /></IconButton>
+          <IconButton onClick={stop(() => copyLink(memory))} title={t('copyLink')}><LinkIcon /></IconButton>
+          <IconButton onClick={stop(() => showQr(memory))} title={t('showQr')}><QrIcon /></IconButton>
           {deletable && (
-            <IconButton onClick={() => onEdit(memory)} title={t('edit')}><PenIcon /></IconButton>
+            <IconButton onClick={stop(() => onEdit(memory))} title={t('edit')}><PenIcon /></IconButton>
           )}
           {deletable && (
             <IconButton
-              onClick={() => setDialog({
+              onClick={stop(() => setDialog({
                 kind: 'confirm', ok: t('del'), text: t('confirmDeleteMemory', memory.title),
                 onYes: () => onDelete(memory.id),
-              })}
-              title={t('del')} hover="hover:bg-red-50"
+              }))}
+              title={t('del')} danger
             ><TrashIcon /></IconButton>
           )}
         </div>
@@ -1350,26 +1586,29 @@
       // irgendwo im Ordner (auch auf einem seiner Memories) meint diesen Ordner.
       const folderBox = (dir) => {
         const isOpen = openDirs.includes(dir);
+        const count = own.filter((m) => inside(m.dir || '', dir)).length;
         return (
           <div
             key={dir}
             {...dropProps(dir)}
-            className={`mb-2 rounded-lg border-2 transition-colors ${dropDir === dir ? 'border-blue-400 bg-blue-50/60' : 'border-transparent'}`}
+            className={`ablage ${dropDir === dir ? 'ziel' : ''}`}
           >
             <div
               {...dragProps({ kind: 'dir', id: dir })}
               onClick={() => toggleDir(dir)}
-              className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg shadow hover:shadow-md cursor-pointer select-none"
+              className="liste-zeile cursor-pointer select-none !pl-1.5"
             >
-              <span className="text-gray-400 w-3">{isOpen ? '▾' : '▸'}</span>
-              <span className="shrink-0 text-gray-400"><FolderIcon /></span>
-              <span className="flex-1 min-w-0 truncate font-semibold text-gray-700">{dirName(dir)}</span>
-              <IconButton onClick={(e) => { e.stopPropagation(); onNew(dir); }} title={t('newMemoryHere')}><PlusIcon /></IconButton>
-              <IconButton onClick={(e) => { e.stopPropagation(); newFolder(dir); }} title={t('newSubfolder')}><FolderIcon /></IconButton>
-              <IconButton onClick={(e) => { e.stopPropagation(); renameFolder(dir); }} title={t('renameFolder')}><PenIcon /></IconButton>
-              <IconButton onClick={(e) => { e.stopPropagation(); dropFolder(dir); }} title={t('deleteFolder')} hover="hover:bg-red-50"><TrashIcon /></IconButton>
+              <span className="liste-name flex items-center gap-1.5">
+                <span className={`shrink-0 text-text-3 transition-transform ${isOpen ? 'rotate-90' : ''}`}><ChevronIcon /></span>
+                <span className="truncate">{dirName(dir)}</span>
+              </span>
+              <span className="liste-zahl">{t('nMemories', count)}</span>
+              <IconButton onClick={stop(() => onNew(dir))} title={t('newMemoryHere')}><PlusIcon /></IconButton>
+              <IconButton onClick={stop(() => newFolder(dir))} title={t('newSubfolder')}><FolderIcon /></IconButton>
+              <IconButton onClick={stop(() => renameFolder(dir))} title={t('renameFolder')}><PenIcon /></IconButton>
+              <IconButton onClick={stop(() => dropFolder(dir))} title={t('deleteFolder')} danger><TrashIcon /></IconButton>
             </div>
-            {isOpen && <div className="ml-4 mt-2">{treeOf(dir)}</div>}
+            {isOpen && <div className="liste-ordner">{treeOf(dir)}</div>}
           </div>
         );
       };
@@ -1384,72 +1623,74 @@
       return (
         <div className={`${SCREEN} p-4 sm:p-8`}>
           <div className="max-w-2xl mx-auto">
-            <div className="relative mb-2">
-              <h1 className="text-4xl font-bold text-center text-gray-800">MyMemory</h1>
-              <div className="absolute right-0 top-1/2 -translate-y-1/2">{settingsButton}</div>
+            {/* Keine Kopfleiste (wie MyKahoot): die Startseite trägt den Markenzug */}
+            <div className="flex items-center gap-3 mb-1">
+              <img src="design/icons/memory.svg" alt="" className="w-11 h-11 rounded-[10px]" />
+              <h1 className="flex-1 text-3xl sm:text-4xl font-bold">MyMemory</h1>
+              {settingsButton}
             </div>
-            <p className="text-center text-gray-500 mb-8">{t('subtitle')}</p>
+            <p className="text-text-2 mb-6">{t('subtitle')}</p>
 
             {settingsPanel}
 
             <div className={`${CARD} mb-8`}>
               <button
                 onClick={() => setCreateOpen((v) => !v)}
-                className="w-full flex items-center justify-between gap-2 px-6 py-4 text-left"
+                className="w-full flex items-center justify-between gap-2 px-5 py-4 text-left"
               >
-                <h2 className="text-lg font-semibold text-gray-700">{t('createTitle')}</h2>
-                <span className={`text-gray-400 transition-transform ${createOpen ? 'rotate-90' : ''}`}>▶</span>
+                <h2 className="text-lg font-bold">{t('createTitle')}</h2>
+                <span className={`text-text-3 transition-transform ${createOpen ? 'rotate-90' : ''}`}><ChevronIcon /></span>
               </button>
               {createOpen && (
-                <div className="px-6 pb-6">
-                  <ol className="list-decimal list-inside text-sm text-gray-600 space-y-1 mb-4">
+                <div className="px-5 pb-5">
+                  <ol className="list-decimal list-inside text-text-2 space-y-1 mb-4">
                     {t('steps')}
                   </ol>
                   <button
                     onClick={() => copyText(kiPrompt(), t('promptCopied'))}
-                    className={`w-full ${BTN_PRIMARY} px-4 py-2 mb-6`}
+                    className={`w-full ${BTN_PRIMARY} mb-6`}
                   >
                     {t('copyPrompt')}
                   </button>
                   <div
                     onClick={() => fileInput.current.click()}
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500 cursor-pointer hover:border-blue-400 hover:text-gray-700 hover:bg-blue-50 transition-all"
+                    className="border-2 border-dashed border-linie rounded-lg p-6 text-center text-text-2 cursor-pointer hover:border-akzent hover:bg-akzent-weich transition-colors"
                   >
                     <span className="flex items-center justify-center gap-2 font-bold"><InboxIcon /> {t('dropTitle')}</span>
-                    <span className="block text-sm text-gray-400">{t('dropHint')}</span>
+                    <span className="block text-sm text-text-3">{t('dropHint')}</span>
                   </div>
                   <input
                     ref={fileInput} type="file" accept=".txt,.md" multiple className="hidden"
                     onChange={(e) => { importFiles(e.target.files); e.target.value = ''; }}
                   />
                   <div className={`flex items-center gap-3 my-4 ${LABEL}`}>
-                    <span className="flex-1 h-px bg-gray-200" /> {t('orPaste')} <span className="flex-1 h-px bg-gray-200" />
+                    <span className="flex-1 h-px bg-linie" /> {t('orPaste')} <span className="flex-1 h-px bg-linie" />
                   </div>
                   <input
                     type="text" value={pastedTitle} onChange={(e) => setPastedTitle(e.target.value)}
                     placeholder={t('pastedTitlePh')}
-                    className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-blue-400"
+                    className={`w-full mb-2 ${INPUT}`}
                   />
                   <textarea
                     value={pasted} onChange={(e) => setPasted(e.target.value)} rows={5}
                     placeholder={t('pastePh')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:outline-none focus:border-blue-400"
+                    className={`w-full text-sm font-mono ${INPUT}`}
                   />
                   <button
                     onClick={importPasted}
                     disabled={!pasted.trim()}
-                    className={`w-full mt-2 px-4 py-2 rounded-lg font-semibold transition-all ${pasted.trim() ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                    className={`w-full mt-2 ${BTN_SECONDARY}`}
                   >
                     {t('importText')}
                   </button>
-                  <p className="text-xs text-gray-400 mt-3">{t('importHint')}</p>
+                  <p className="text-sm text-text-3 mt-3">{t('importHint')}</p>
                 </div>
               )}
             </div>
 
-            <div className="mb-8">
-              <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-lg font-semibold text-gray-600 flex-1">{t('myMemories')}</h2>
+            <div className={`${CARD} p-3 sm:p-4 mb-6`}>
+              <div className="flex items-center gap-1 mb-2 pl-2.5">
+                <h2 className={`${LABEL} flex-1`}>{t('myMemories')}</h2>
                 <IconButton onClick={() => onNew('')} title={t('newMemory')}><PlusIcon /></IconButton>
                 <IconButton onClick={() => newFolder('')} title={t('newFolder')}><FolderIcon /></IconButton>
                 <IconButton onClick={exportAll} title={t('exportAll')}><DownloadIcon /></IconButton>
@@ -1457,19 +1698,22 @@
               {/* Die Liste selbst ist der Hauptordner: was hierher gezogen wird, liegt in keinem Ordner */}
               <div
                 {...dropProps('')}
-                className={`min-h-[3rem] rounded-lg border-2 transition-colors ${dropDir === '' ? 'border-blue-400 bg-blue-50/60' : 'border-transparent'}`}
+                className={`ablage min-h-[3rem] ${dropDir === '' ? 'ziel' : ''}`}
               >
                 {own.length || folders.length ? treeOf('') : (
-                  <p className="text-sm text-gray-400 px-1 py-3">{t('emptyList')}</p>
+                  <div className="flex flex-col items-center text-center gap-3 px-4 py-6 text-text-3">
+                    <img src="design/icons/creme/memory.svg" alt="" className="w-[52px] h-[52px] rounded-xl" />
+                    <p className="text-sm max-w-xs">{t('emptyList')}</p>
+                  </div>
                 )}
               </div>
               {own.length > 0 && (
-                <p className="text-xs text-gray-400 mt-1">{t('storedHint')}</p>
+                <p className="text-sm text-text-3 mt-2 px-2.5">{t('storedHint')}</p>
               )}
             </div>
 
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-600 mb-3">{t('examples')}</h2>
+            <div className={`${CARD} p-3 sm:p-4 mb-8`}>
+              <h2 className={`${LABEL} mb-2 pl-2.5`}>{t('examples')}</h2>
               {DEMOS.map((m) => row(m, false))}
             </div>
           </div>
@@ -1483,7 +1727,7 @@
             />
           )}
           {toast && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+            <div className="kachel fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-3 z-50 font-semibold" style={{ boxShadow: 'var(--schatten)' }}>
               {toast}
             </div>
           )}
@@ -1553,7 +1797,7 @@
 
       // Vorschau nur, wo sie etwas zeigt, das im Feld nicht steht (LaTeX)
       const preview = (text) => text.includes('$') && (
-        <div className="mt-1 text-sm text-gray-500"><MathRenderer content={text} /></div>
+        <div className="mt-1 text-sm text-text-2"><MathRenderer content={text} /></div>
       );
 
       const field = (i, key, label, placeholder) => (
@@ -1571,11 +1815,11 @@
       return (
         <div className={`${SCREEN} p-4 sm:p-8`}>
           <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold text-gray-800 mb-6">
+            <h1 className="text-2xl font-bold mb-6">
               {memory.id ? t('editMemory') : t('newMemory')}
             </h1>
 
-            <div className={`${CARD} p-6 mb-6`}>
+            <div className={`${CARD} p-5 mb-6`}>
               <label className="block mb-4">
                 <span className={LABEL}>{t('titleLabel')}</span>
                 <input
@@ -1606,17 +1850,17 @@
                   <option value="">{t('gameLangDefault')}</option>
                   {LANGS.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
                 </select>
-                <span className="block mt-1 text-sm text-gray-500">{t('gameLangHint')}</span>
+                <span className="block mt-1 text-sm text-text-2">{t('gameLangHint')}</span>
               </label>
             </div>
 
             {pairs.map((pair, i) => (
-              <div key={i} className="bg-white rounded-lg shadow p-4 mb-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="flex-1 text-sm font-semibold text-gray-400">{t('pairN', i + 1)}</span>
+              <div key={i} className={`${CARD} p-4 mb-3`}>
+                <div className="flex items-center gap-1 mb-2">
+                  <span className="flex-1 text-sm font-semibold text-text-3">{t('pairN', i + 1)}</span>
                   <IconButton onClick={() => movePair(i, -1)} title={t('moveUp')}>↑</IconButton>
                   <IconButton onClick={() => movePair(i, 1)} title={t('moveDown')}>↓</IconButton>
-                  <IconButton onClick={() => removePair(i)} title={t('deletePair')} hover="hover:bg-red-50"><TrashIcon /></IconButton>
+                  <IconButton onClick={() => removePair(i)} title={t('deletePair')} danger><TrashIcon /></IconButton>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-3">
                   {field(i, 'question', t('front'), t('frontPh'))}
@@ -1625,24 +1869,24 @@
               </div>
             ))}
 
-            <button onClick={addPair} className="w-full px-4 py-2 mb-4 bg-white rounded-lg shadow hover:shadow-md font-semibold text-gray-600 flex items-center justify-center gap-2">
+            <button onClick={addPair} className={`w-full mb-4 flex items-center justify-center gap-2 ${BTN_SECONDARY}`}>
               <PlusIcon /> {t('addPair')}
             </button>
 
             {duplicate && (
-              <p className="text-sm text-amber-600 mb-2">{t('dupAnswer', duplicate)}</p>
+              <p className="text-sm text-orange mb-2">{t('dupAnswer', duplicate)}</p>
             )}
-            {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+            {error && <p className="text-sm text-rot mb-2">{error}</p>}
 
             <div className="flex gap-3">
-              <button onClick={cancel} className="flex-1 px-4 py-3 bg-white rounded-lg shadow hover:shadow-md font-semibold text-gray-600">
+              <button onClick={cancel} className={`flex-1 ${BTN_NEUTRAL}`}>
                 {t('cancel')}
               </button>
-              <button onClick={save} className={`flex-1 ${BTN_PRIMARY} px-4 py-3`}>
+              <button onClick={save} className={`flex-1 ${BTN_PRIMARY}`}>
                 {t('save')}
               </button>
             </div>
-            <p className="text-xs text-gray-400 mt-3">{t('editorHint')}</p>
+            <p className="text-sm text-text-3 mt-3">{t('editorHint')}</p>
           </div>
           {dialog && <AskModal dialog={dialog} onClose={() => setDialog(null)} />}
         </div>
@@ -1672,7 +1916,7 @@
               if (e.key === 'Enter') save();
               if (e.key === 'Escape') setEditing(false);
             }}
-            className="w-24 sm:w-40 px-2 py-0.5 text-lg font-semibold text-gray-700 text-center bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-blue-400"
+            className={`w-24 sm:w-40 !px-2 !py-0.5 text-lg font-semibold text-center ${INPUT}`}
           />
         );
       }
@@ -1680,7 +1924,7 @@
         <button
           onClick={() => { setValue(name); setEditing(true); }}
           title={t('editName')}
-          className="block mx-auto max-w-[6rem] sm:max-w-[10rem] truncate text-lg font-semibold text-gray-700 hover:text-gray-900 underline decoration-dotted decoration-gray-400 underline-offset-4"
+          className="block mx-auto max-w-[6rem] sm:max-w-[10rem] truncate text-lg font-semibold underline decoration-dotted decoration-text-3 underline-offset-4"
         >
           {name || fallback}
         </button>
@@ -1798,26 +2042,29 @@
               <button
                 onClick={onBack}
                 title={t('toOverview')}
-                className="shrink-0 bg-white px-4 py-2 rounded-lg shadow hover:shadow-md transition-all font-semibold text-gray-700"
+                className={`shrink-0 ${BTN_NEUTRAL} !px-4 !py-2`}
               >
                 ← {t('overview')}
               </button>
-              <h1 className="flex-1 min-w-0 text-2xl sm:text-4xl font-bold text-center text-gray-800 break-words">{title}</h1>
+              <h1 className="flex-1 min-w-0 text-2xl sm:text-4xl font-bold text-center break-words">{title}</h1>
               {settingsButton}
             </div>
             {settingsPanel}
 
             {/* Spielerinfo */}
-            <div className={`${CARD} p-6 mb-8`}>
-              <div className="flex justify-around items-center">
-                <div className={`text-center p-4 rounded-lg transition-all ${currentPlayer === 1 && !isGameComplete ? 'bg-red-100 ring-2 ring-red-500' : 'bg-gray-50'}`}>
-                  {nameField(1)}
-                  <div className="text-3xl font-bold text-red-600">{scores.player1}</div>
-                </div>
-                <div className={`text-center p-4 rounded-lg transition-all ${currentPlayer === 2 && !isGameComplete ? 'bg-blue-100 ring-2 ring-blue-500' : 'bg-gray-50'}`}>
-                  {nameField(2)}
-                  <div className="text-3xl font-bold text-blue-600">{scores.player2}</div>
-                </div>
+            {/* Spielfarbe als Fläche und Punkt, die Zahl bleibt in --text: Spielfarbe 1
+                (Budapest: Rosa) erreicht als Schrift auf Weiss nur 2:1 */}
+            <div className={`${CARD} p-4 sm:p-5 mb-8`}>
+              <div className="flex justify-around items-center gap-3">
+                {[1, 2].map((n) => (
+                  <div key={n} className={`spieler text-center px-4 py-3 rounded-lg transition-colors ${currentPlayer === n && !isGameComplete ? `dran-${n}` : ''}`}>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className={`punkt punkt-${n}`} />
+                      {nameField(n)}
+                    </div>
+                    <div className="text-3xl font-bold">{scores[`player${n}`]}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -1836,14 +2083,14 @@
                       !flipped ? 'hover:scale-105' : ''
                     }`}
                   >
-                    <div ref={i === 0 ? tileRef : null} className={`w-full h-full rounded-lg shadow-md flex items-center justify-center overflow-hidden p-2 sm:p-3 text-sm sm:text-lg font-bold text-center transition-all duration-300 ${
+                    <div ref={i === 0 ? tileRef : null} className={`w-full h-full rounded-xl flex items-center justify-center overflow-hidden p-2 sm:p-3 text-sm sm:text-lg font-bold text-center transition-colors duration-300 ${
                       flipped
                         ? matched
-                          ? 'bg-green-100 text-green-800'
+                          ? 'karte-paar'
                           : card.type === 'question'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-blue-100 text-blue-800'
-                        : 'bg-gradient-to-br from-red-400 to-blue-500 text-white hover:from-red-500 hover:to-blue-600'
+                          ? 'karte-frage'
+                          : 'karte-antwort'
+                        : 'karte-ruecken'
                     }`}>
                       {flipped ? (
                         <FitText content={card.content} size={fontSizeFor(card.content)} />
@@ -1858,7 +2105,7 @@
 
             {/* Neues Spiel Button */}
             <div className="text-center">
-              <button onClick={resetGame} className={`${BTN_PRIMARY} px-8 py-3`}>
+              <button onClick={resetGame} className={`${BTN_SECONDARY} !px-8`}>
                 {t('newGame')}
               </button>
             </div>
@@ -1867,26 +2114,22 @@
             {isGameComplete && (
               <Modal>
                   <h2 className="text-3xl font-bold text-center mb-4">{t('gameOver')}</h2>
-                  <div className="text-center mb-6">
-                    {scores.player1 > scores.player2 ? (
-                      <div className="text-2xl text-red-600 font-bold">{t('wins', nameOf(1))}</div>
-                    ) : scores.player2 > scores.player1 ? (
-                      <div className="text-2xl text-blue-600 font-bold">{t('wins', nameOf(2))}</div>
-                    ) : (
-                      <div className="text-2xl text-gray-600 font-bold">{t('draw')}</div>
-                    )}
+                  <div className="text-center mb-6 text-2xl font-bold">
+                    {scores.player1 === scores.player2
+                      ? t('draw')
+                      : t('wins', nameOf(scores.player1 > scores.player2 ? 1 : 2))}
                   </div>
                   <div className="flex justify-around mb-6">
-                    <div className="text-center">
-                      <div className="text-gray-600 break-words">{nameOf(1)}</div>
-                      <div className="text-4xl font-bold text-red-600">{scores.player1}</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-gray-600 break-words">{nameOf(2)}</div>
-                      <div className="text-4xl font-bold text-blue-600">{scores.player2}</div>
-                    </div>
+                    {[1, 2].map((n) => (
+                      <div key={n} className="text-center">
+                        <div className="flex items-center justify-center gap-2 text-text-2 break-words">
+                          <span className={`punkt punkt-${n}`} /> {nameOf(n)}
+                        </div>
+                        <div className="text-4xl font-bold">{scores[`player${n}`]}</div>
+                      </div>
+                    ))}
                   </div>
-                  <button onClick={resetGame} className={`w-full ${BTN_PRIMARY} px-6 py-3`}>
+                  <button onClick={resetGame} className={`w-full ${BTN_PRIMARY}`}>
                     {t('playAgain')}
                   </button>
               </Modal>
@@ -1920,15 +2163,15 @@
       if (error) {
         return (
           <div className={`${SCREEN} p-8 flex flex-col items-center justify-center gap-4`}>
-            <div className="text-xl text-red-600 font-semibold text-center">{error}</div>
-            <button onClick={onBack} className={`${BTN_PRIMARY} px-6 py-3`}>
+            <div className="text-xl text-rot font-semibold text-center">{error}</div>
+            <button onClick={onBack} className={BTN_PRIMARY}>
               {t('toOverview')}
             </button>
           </div>
         );
       }
       if (!memory) {
-        return <div className={`${SCREEN} p-8 text-center text-gray-500`}>{t('loading')}</div>;
+        return <div className={`${SCREEN} p-8 text-center text-text-2`}>{t('loading')}</div>;
       }
       return <MemoryGame title={memory.title} allPairs={memory.pairs} onBack={onBack} />;
     };
@@ -2049,7 +2292,7 @@
           : own.find((m) => m.id === route.id);
         if (!target) {
           return (
-            <div className={`${SCREEN} p-8 text-center text-gray-500`}>
+            <div className={`${SCREEN} p-8 text-center text-text-2`}>
               {t('errGone')}
               <button onClick={back} className="block mx-auto mt-4 underline">{t('backToList')}</button>
             </div>
