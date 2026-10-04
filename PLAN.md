@@ -78,6 +78,11 @@ Dazugekommen:
   Leerzustand. In den Einstellungen neu: Farbschema, Akzentfarbe, Hell/Dunkel/System.
   Ohne Kopfleiste (wie MyKahoot). Details und Abweichungen: `CLAUDE.md`.
 - [x] **CLAUDE.md** angelegt.
+- [x] **Markenzug wie MyKahoot** (04.10.2026): Elefant rechts vom Titel, ohne Kachel,
+  als Maske in `currentColor` (`logo-elefant.svg` aus `tools/make-logo.py`).
+- [x] **Einstellungen als Kästchen oben rechts** (04.10.2026): klappt über den Inhalt
+  auf statt die Spalte zu schieben; zu per Knopf, Klick daneben, Esc. Regel steht in
+  MySuite `DESIGN.md`.
 
 ## Backlog
 
@@ -87,6 +92,12 @@ Dazugekommen:
   nach MySuite (Schemen auch an `data-modus` hängen), nicht hierher.
 - **Zissou + eigener Ton** (MySuite): `[data-schema="zissou"]` setzt `--akzent-ink`
   immer dunkel, auch wenn ein dunkler Ton (Tiefsee, Rost …) der Akzent ist.
+
+- **Layout ansprechender** (Skizzen 04.10.2026, noch nicht gewählt): 1 Art-déco-Tapete
+  als Grund (Tag/Nacht wie der Dschungel in MyKahoot), 2 Spieltisch aus Filz mit
+  gemustertem Kartenrücken, 3 Wendeanimation in 3D + Paar fliegt zum Spieler,
+  4 gefundene Paare als gefächerter Stapel pro Spieler, 5 Elefant als Maskottchen
+  (zeigt, wer am Zug ist, reagiert auf Paare).
 
 - **ZIP wieder einlesen**: der Import kennt nur `.txt`; ein aus dem Export
   gezogenes ZIP samt Ordnern zurückzuholen wäre das fehlende Gegenstück.

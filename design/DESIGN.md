@@ -56,7 +56,8 @@ Alle Schemen stehen allen Apps offen, auch als Einstellung für die Nutzer. Jede
 
 ## Anpassungen pro App
 Das System ist ein Rahmen, kein Korsett: Eine App darf von Hand abweichen, wenn es zum Werkzeug passt. Die Abweichung steht dann in der CLAUDE.md der App. Beispiele aus MyKahoot:
-- **Leiste optional:** MyKahoot hat die Kopfleiste bewusst nicht (sie störte), die Startseite trägt stattdessen einen Markenzug: Titel plus Tier-Logo als Maske in `currentColor` (hell auf dunkel, dunkel auf hell).
+- **Leiste optional:** MyKahoot hat die Kopfleiste bewusst nicht (sie störte), die Startseite trägt stattdessen einen Markenzug: Titel, **rechts daneben** das Tier **ohne Kachel** als Maske in `currentColor` (hell auf dunkel, dunkel auf hell), gleich hoch wie der Titel. Die Maske ist eine eigene Datei der App (nur das Tier, Augen/Flecken als Löcher, eng zugeschnitten), erzeugt aus `icons/<app>.svg` per `tools/make-logo.py` (MyKahoot, MyMemory). Die Kachel bleibt dem App-Icon und Favicon vorbehalten.
+- **Einstellungen ohne Leiste:** oben rechts angeheftet; das Kästchen klappt **darunter über den Inhalt** auf (Karte mit `--schatten`, rechtsbündig, ca. 264–320 px breit, auf dem Handy höchstens Bildschirmbreite − 2 × 16 px) und schiebt die mittlere Spalte **nicht** nach unten. Zu per Knopf, Klick daneben oder Esc. Gleich auf der Startseite und im Spiel/Werkzeug.
 - **Hintergrund passend zum Tool:** Ein eigenes Bild (Dschungel, tags/nachts) darf den Grund ersetzen. Es muss dieselbe Umschaltung wie die Tokens mitmachen: `data-modus="dunkel"` von Hand **und** `prefers-color-scheme: dark` ohne `data-modus="hell"`. Bild-URLs und Schichten einmal als Custom Properties definieren, nicht in beiden Regeln kopieren. Karten und Listen bleiben auf `--karte`, frei stehender Text bekommt einen Hof in `--grund`.
 - **Sonderstimmung:** Ein Modus (MyKahoot: Deep-Dark) darf Dunkel erzwingen und den Akzent ändern; Tokens und Kontrast (≥ 4.5:1 als Schrift) gelten weiter.
 

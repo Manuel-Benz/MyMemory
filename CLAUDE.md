@@ -52,8 +52,11 @@ Deploy = `git push` auf `main` (GitHub Pages).
 
 ### Abweichungen
 
-- **Keine Kopfleiste** (wie MyKahoot): Startseite mit Markenzug (Elefant-Kachel +
-  Titel), im Spiel die bisherige Kopfzeile (Übersicht · Titel · Einstellungen).
+- **Keine Kopfleiste** (wie MyKahoot): Startseite mit Markenzug (Titel, rechts
+  daneben der Elefant ohne Kachel als Maske in `currentColor`, `logo-elefant.svg` aus
+  `tools/make-logo.py` — nach neuem Icon neu erzeugen), im Spiel die bisherige Kopfzeile (Übersicht · Titel · Einstellungen).
+- **Einstellungen** (`<Settings />`): Symbolknopf oben rechts, das Kästchen klappt
+  darüber auf statt die Spalte zu schieben (wie MyKahoot, Regel in MySuite DESIGN.md).
 - **Spielfarben:** Spieler 1 + Vorderseiten = `--spiel-1`, Spieler 2 + Rückseiten =
   `--spiel-4`, gefundene Paare `--gruen`, Kartenrücken = Akzent. `--spiel-2` bleibt
   aussen vor (in Budapest identisch mit dem Akzent). In «Isle of Dogs» sind `--spiel-1`/`-4` fast gleich: dort nimmt Spieler 2 `--blau`. Spielfarbe nur als Fläche/Punkt,

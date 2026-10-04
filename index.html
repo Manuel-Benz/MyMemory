@@ -120,6 +120,15 @@
     .knopf-2:hover { background: color-mix(in oklab, var(--akzent) 24%, var(--karte)); }
     .knopf-n { background: transparent; color: var(--text); border: 1px solid var(--linie); }
     .knopf-n:hover { background: var(--hover); }
+    /* Markenzug wie in MyKahoot: Elefant rechts vom Titel, ohne Kachel, als Maske in
+       currentColor — so dunkel auf Hell und hell auf Dunkel. Datei aus tools/make-logo.py */
+    .logo {
+      display: inline-block; height: 1.1em;
+      aspect-ratio: 758 / 600; /* = viewBox-Breite/-Höhe, gibt tools/make-logo.py aus */
+      background: currentColor;
+      -webkit-mask: url("logo-elefant.svg") center / contain no-repeat;
+      mask: url("logo-elefant.svg") center / contain no-repeat;
+    }
     .knopf:disabled { opacity: .45; cursor: not-allowed; }
     /* Quadratische Symbolknöpfe, ruhig bis zum Darüberfahren */
     .symbol { flex: none; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
@@ -1325,8 +1334,20 @@
     // Stellen der Seite stehen (Knopf im Kopf, Kästchen darunter). Es gibt sie
     // auf der Auswahlseite und im Spiel: wer über einen Link hereinkommt, sieht
     // die Übersicht nie und käme sonst nicht an die Sprache.
-    const useSettings = () => {
+    // Einstellungen wie in MyKahoot: oben rechts angeheftet, das Kästchen klappt
+    // darunter über den Inhalt auf, statt die mittlere Spalte nach unten zu schieben.
+    // Zu geht es per Knopf, Klick daneben oder Esc.
+    const Settings = () => {
       const [open, setOpen] = useState(false);
+      const box = useRef(null);
+      useEffect(() => {
+        if (!open) return;
+        const away = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
+        const esc = (e) => { if (e.key === 'Escape') setOpen(false); };
+        document.addEventListener('pointerdown', away);
+        document.addEventListener('keydown', esc);
+        return () => { document.removeEventListener('pointerdown', away); document.removeEventListener('keydown', esc); };
+      }, [open]);
       const [look, setLook] = useState(currentLook);
       const [modus, setModus] = useState(currentModus);
       const pickLook = (next) => { setLook(next); applyLook(next); };
@@ -1353,7 +1374,7 @@
       );
       const scheme = SCHEMES.find((x) => x.id === look.schema);
       const panel = open && (
-        <div className={`${CARD} p-5 mb-6 space-y-4`}>
+        <div className={`${CARD} absolute right-0 top-full mt-2 z-30 w-80 max-w-[calc(100vw-2rem)] p-5 space-y-4 text-left shadow-[var(--schatten)]`}>
           <div>
             <div className={`${LABEL} mb-2`}>{t('language')}</div>
             {toggle(LANGS.map((l) => [l.id, l.name]), currentLang, changeLang)}
@@ -1388,13 +1409,12 @@
           </div>
         </div>
       );
-      return [button, panel];
+      return <div ref={box} className="relative shrink-0">{button}{panel}</div>;
     };
 
     // ---------- Auswahlseite ----------
     const Selection = ({ own, folders, onOpen, onEdit, onNew, onImport, onDelete, folderApi }) => {
       const [toast, setToast] = useState(null);
-      const [settingsButton, settingsPanel] = useSettings();
       const [qr, setQr] = useState(null); // { title, url }
       const [createOpen, setCreateOpen] = useState(false);
       const [openDirs, setOpenDirs] = useState(loadOpen);
@@ -1666,13 +1686,13 @@
           <div className="max-w-2xl mx-auto">
             {/* Keine Kopfleiste (wie MyKahoot): die Startseite trägt den Markenzug */}
             <div className="flex items-center gap-3 mb-1">
-              <img src="design/icons/memory.svg" alt="" className="w-11 h-11 rounded-[10px]" />
-              <h1 className="flex-1 text-3xl sm:text-4xl font-bold">MyMemory</h1>
-              {settingsButton}
+              <div className="flex-1 flex items-center gap-3 text-3xl sm:text-4xl">
+                <h1 className="font-bold">MyMemory</h1>
+                <span className="logo" role="img" aria-label="MyMemory-Elefant" />
+              </div>
+              <Settings />
             </div>
             <p className="text-text-2 mb-6">{t('subtitle')}</p>
-
-            {settingsPanel}
 
             <div className={`${CARD} mb-8`}>
               <button
@@ -2001,7 +2021,6 @@
         />
       );
       const [isChecking, setIsChecking] = useState(false);
-      const [settingsButton, settingsPanel] = useSettings();
 
       // Eine Schriftgrösse für alle Kacheln, bestimmt vom längsten Eintrag.
       // Gemessen wird an den Paaren, nicht an den gemischten Karten — sonst
@@ -2088,9 +2107,8 @@
                 ← {t('overview')}
               </button>
               <h1 className="flex-1 min-w-0 text-2xl sm:text-4xl font-bold text-center break-words">{title}</h1>
-              {settingsButton}
+              <Settings />
             </div>
-            {settingsPanel}
 
             {/* Spielerinfo */}
             {/* Spielfarbe als Fläche und Punkt, die Zahl bleibt in --text: Spielfarbe 1
