@@ -27,6 +27,10 @@ Dazugekommen:
   angebrochene Reihe steht mittig (flex-wrap). Unter 110 px Kachel wird
   gescrollt (Handy: 3 Spalten). Das Feld darf breiter sein als die Spalte.
   Schriftleiter neu bis 32 px für grosse Kacheln.
+- **Ordner-Sync gehärtet** (Review): Memories sind pro Ordner + Titel eindeutig,
+  Dateinamen-Kollisionen werden abgelehnt, Ordnernamen ohne `: ? "` usw.,
+  veralteter Lesestand und Finder-Löschung frisch gespeicherter Memories behandelt,
+  Fehlerbanner mit Ordnernamen, Lesen gebündelt + gecached.
 - **Anzeigetafel** im Spiel: «Spieler 1  2 : 1  Spieler 2» in einer Zeile.
 - **Längere Einträge**: die Kartenschrift verkleinert sich stufenweise, bis der
   Text in die Kachel passt (24–14 px, auf dem Handy 18–10 px). Gemessen wird

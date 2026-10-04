@@ -10,10 +10,15 @@ Eine einzige `index.html`: React 18 + Babel standalone, Tailwind per CDN
 (Konfiguration inline im `<head>`), KaTeX, qrcode-generator; JSZip wird erst beim
 Export nachgeladen. **Kein Build-Schritt, kein Backend.** Daten im Browser
 (`localStorage`) bzw. komprimiert im URL-Fragment (`#m=…`). Optional (Chrome/Edge am
-Computer) liegen die Memories als `.txt` in einem verknüpften Ordner — Logik 1:1 aus
+Computer) liegen die Memories als `.txt` in einem verknüpften Ordner — Logik aus
 MyVoci (`readDir`/`fromDisk`/`mirrorDir`, Handle in IndexedDB `mymemory`→`kv`→`dir`,
 `mirrored`-Ref, eine Promise-Kette, Nachlesen beim Fenster-Fokus); Begründungen dort
-in der CLAUDE.md.
+in der CLAUDE.md. Abweichungen: Identität eines Memorys ist Ordner + Titel
+(`memoryPlace`, Ordner über `safeDir`) bzw. dieselbe Datei (`sameSlot`) — Import und
+Editor prüfen dagegen; `known`-Ref (ids, die wir geschrieben haben) statt nur
+`disk`-Flag; `readDir` liest gebündelt und cached nach Grösse + Änderungszeit;
+`takeDisk` verwirft einen Lesestand, wenn sich der Store währenddessen geändert hat.
+Ordnernamen gehen durch `cleanName` (keine Dateisystem-Zeichen).
 
 ## Befehle
 

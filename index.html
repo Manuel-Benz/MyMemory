@@ -379,7 +379,7 @@
         dirDisconnect: 'Trennen',
         dirPrompt: (name) => `Der Ordner «${name}» braucht deine Freigabe, bevor die Memories dort gespeichert werden.`,
         dirReconnect: 'Ordner freigeben',
-        dirError: (name) => `Der Ordner «${name}» ist nicht erreichbar (verschoben, gelöscht oder Zugriff verweigert). Änderungen bleiben bis dahin nur im Browser.`,
+        dirError: (name) => `Der Ordner «${name}» ist nicht erreichbar (verschoben, gelöscht oder Zugriff verweigert). Bis dahin wird nichts in den Ordner geschrieben; beim Neuladen gilt der Stand im Ordner.`,
         nPairs: (n) => `${n} ${n === 1 ? 'Paar' : 'Paare'}`,
         nMemories: (n) => `${n} ${n === 1 ? 'Memory' : 'Memories'}`,
         // Knöpfe und Rückmeldungen
@@ -517,7 +517,7 @@
         dirDisconnect: 'Disconnect',
         dirPrompt: (name) => `The folder “${name}” needs your permission before the memories are saved there.`,
         dirReconnect: 'Grant access',
-        dirError: (name) => `The folder “${name}” is not reachable (moved, deleted or access denied). Until then, changes stay in the browser only.`,
+        dirError: (name) => `The folder “${name}” is not reachable (moved, deleted or access denied). Until then nothing is written to the folder; on reload the folder's version wins.`,
         nPairs: (n) => `${n} ${n === 1 ? 'pair' : 'pairs'}`,
         nMemories: (n) => `${n} ${n === 1 ? 'memory' : 'memories'}`,
         newMemory: 'New memory',
@@ -972,18 +972,27 @@
     const loadDirHandle = () => dbRun('readonly', (kv) => kv.get('dir')).catch(() => undefined);
     const saveDirHandle = (h) => dbRun('readwrite', (kv) => (h ? kv.put(h, 'dir') : kv.delete('dir'))).catch(() => {});
 
+    const READ_BATCH = 16;
     const isMemoryFile = (name) => /\.(txt|md)$/i.test(name) && !name.startsWith('.');
     const fileName = (memory) => memory.file || `${safeName(memory.title)}.txt`;
     const memoryPath = (memory) => `${memory.dir ? safeDir(memory.dir) + '/' : ''}${fileName(memory)}`;
     // Der Titel ist nur innerhalb eines Ordners eindeutig, nicht in der App
-    const memoryPlace = (memory) => `${memory.dir || ''}\u0000${memory.title}`;
+    // Der Ordner geht über safeDir, wie ihn mirrorDir auf die Platte schreibt: ein
+    // Ordner «Kap. 1: Zellen» heisst dort «Kap. 1- Zellen» und muss derselbe bleiben.
+    const placeDir = (memory) => (memory.dir ? safeDir(memory.dir) : '');
+    const memoryPlace = (memory) => `${placeDir(memory)}\u0000${memory.title}`;
+    // Gleiche Datei: «Wer: Was» und «Wer? Was» (oder nur Gross/Klein, macOS/Windows)
+    // landen im selben Ordner in derselben Datei — mirrorDir schriebe beide dorthin
+    // und beim Nachlesen fiele eines weg. Darum gilt das als belegt.
+    const samePath = (a, b) => placeDir(a) === placeDir(b) && fileName(a).toLowerCase() === fileName(b).toLowerCase();
+    const sameSlot = (a, b) => memoryPlace(a) === memoryPlace(b) || samePath(a, b);
 
     // Liest den ganzen Ordner: Memories noch ohne id (die vergibt fromDisk),
     // Ordnerpfade wie im Store («Mathe/Klasse 8»). Dateien ohne ein einziges
     // Paar sind keine Memories (Notizen, Listen) und bleiben aussen vor.
-    const readDir = async (root) => {
+    const readDir = async (root, cache = new Map()) => {
       const files = [], folders = [];
-      // Erst den Baum ablaufen, dann alle Dateien auf einmal lesen: einzeln
+      // Erst den Baum ablaufen, dann die Dateien gebündelt lesen: einzeln
       // abgewartet kostet jede Datei eine eigene Runde ins Dateisystem.
       const walk = async (handle, dir) => {
         for await (const [name, entry] of handle.entries()) {
@@ -996,8 +1005,18 @@
         }
       };
       await walk(root, '');
-      const read = await Promise.all(files.map(async ({ name, dir, entry }) => {
-        const parsed = parseFile(await (await entry.getFile()).text(), name);
+      // Höchstens READ_BATCH Dateien gleichzeitig, und eine Datei, die sich seit
+      // dem letzten Lesen nicht geändert hat (Grösse + Änderungszeit), wird nicht
+      // neu gelesen und geparst: der Fokus liest sonst bei jedem Fensterwechsel alles.
+      const readOne = async ({ name, dir, entry }) => {
+        const file = await entry.getFile();
+        const key = `${dir}/${name}`, hit = cache.get(key);
+        let parsed;
+        if (hit && hit.mod === file.lastModified && hit.size === file.size) parsed = hit.parsed;
+        else {
+          parsed = parseFile(await file.text(), name);
+          cache.set(key, { mod: file.lastModified, size: file.size, parsed });
+        }
         // `file` merkt sich den echten Dateinamen nur, wenn er vom Titel
         // abweicht («Memory_Thema.txt» mit «# Thema»): dann schreibt die App
         // weiter dorthin, statt eine zweite Datei anzulegen. `disk` heisst «lag
@@ -1006,7 +1025,9 @@
         const memory = { ...parsed, dir, disk: true };
         if (!memory.lang) delete memory.lang;
         return name === fileName(memory) ? memory : { ...memory, file: name };
-      }));
+      };
+      const read = [];
+      for (let i = 0; i < files.length; i += READ_BATCH) read.push(...await Promise.all(files.slice(i, i + READ_BATCH).map(readOne)));
       return { memories: read.filter((m) => m.pairs.length), folders };
     };
 
@@ -1078,7 +1099,11 @@
     // und dort schon lag, wurde im Finder gelöscht.
     // Zurück kommt neben dem neuen Stand auch `onDisk`: der reine Inhalt des
     // Ordners, gegen den mirrorDir seine Differenz bildet.
-    const fromDisk = (prev, disk, keepAll) => {
+    const fromDisk = (prev, disk, keepAll, known = new Set()) => {
+      // Auf der Platte war ein Memory, wenn es von dort kam (`disk`) oder wir es
+      // dorthin geschrieben haben (`known`) — sonst käme ein im Finder gelöschtes,
+      // eben erst gespeichertes Memory beim nächsten Fokus zurück.
+      const onPlatte = (m) => m.disk || known.has(m.id);
       const byPlace = new Map(prev.memories.map((m) => [memoryPlace(m), m]));
       const used = new Set();
       const take = (d, old) => {
@@ -1093,7 +1118,7 @@
       // Dann verschoben oder umbenannt: nur Memories, die schon im Ordner lagen
       // und deren Titel auf beiden Seiten genau einmal vorkommt.
       const free = new Map();
-      for (const m of prev.memories) if (!used.has(m.id) && m.disk) free.set(m.title, free.has(m.title) ? null : m);
+      for (const m of prev.memories) if (!used.has(m.id) && onPlatte(m)) free.set(m.title, free.has(m.title) ? null : m);
       const want = {};
       for (const d of first) if (!d.id) want[d.title] = (want[d.title] || 0) + 1;
       const memories = first.map((d) => {
@@ -1103,7 +1128,7 @@
       // Bewusst nicht aus `memories` abgeleitet: dort stecken beim Verbinden
       // schon die ergänzten Paare, und die soll mirrorDir ja noch schreiben.
       const onDisk = { memories: disk.memories.map((d, i) => ({ ...d, id: memories[i].id })).sort(byTitle), folders: disk.folders };
-      const local = prev.memories.filter((m) => !used.has(m.id) && (keepAll || !m.disk));
+      const local = prev.memories.filter((m) => !used.has(m.id) && (keepAll || !onPlatte(m)));
       const next = {
         memories: [...memories, ...local].sort(byTitle),
         folders: [...new Set([...disk.folders, ...(keepAll ? prev.folders : [])])],
@@ -1290,6 +1315,7 @@
     const FONT_STEPS_SM = [18, 16, 14, 12, 11, 10];
     const SMALL_SCREEN = window.matchMedia('(max-width: 640px)');
     // Welche Leiter gerade gilt — gefragt beim Messen und für die Grösse davor.
+    const subscribeSmall = (fn) => { SMALL_SCREEN.addEventListener('change', fn); return () => SMALL_SCREEN.removeEventListener('change', fn); };
     const fontSteps = () => (SMALL_SCREEN.matches ? FONT_STEPS_SM : FONT_STEPS);
 
     // Gemessen wird nicht jede Karte für sich, sondern alle Inhalte zusammen:
@@ -1791,7 +1817,7 @@
     };
 
     // ---------- Auswahlseite ----------
-    const Selection = ({ own, folders, onOpen, onEdit, onNew, onImport, onDelete, folderApi, dir }) => {
+    const Selection = ({ own, folders, onOpen, onEdit, onNew, onImport, onDelete, folderApi, link }) => {
       const [toast, setToast] = useState(null);
       const [qr, setQr] = useState(null); // { title, url }
       const [createOpen, setCreateOpen] = useState(false);
@@ -2123,21 +2149,21 @@
                   >
                     {t('importText')}
                   </button>
-                  <p className="text-sm text-text-3 mt-3">{dir.status === 'ok' ? t('importHintDir', dir.name) : t('importHint')}</p>
+                  <p className="text-sm text-text-3 mt-3">{link.status === 'ok' ? t('importHintDir', link.name) : t('importHint')}</p>
                 </div>
               )}
             </div>
 
-            {(dir.status === 'prompt' || dir.status === 'error') && (
+            {(link.status === 'prompt' || link.status === 'error') && (
               <div className={`${CARD} p-4 mb-6 text-sm`}>
-                <p className={`mb-3 font-semibold ${dir.status === 'prompt' ? 'text-orange' : 'text-rot'}`}>
-                  {dir.status === 'prompt' ? t('dirPrompt', dir.name) : t('dirError', dir.name)}
+                <p className={`mb-3 font-semibold ${link.status === 'prompt' ? 'text-orange' : 'text-rot'}`}>
+                  {link.status === 'prompt' ? t('dirPrompt', link.name) : t('dirError', link.name)}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {dir.status === 'prompt'
-                    ? <button onClick={dir.reconnect} className={`${BTN_PRIMARY} !py-1.5 text-sm`}>{t('dirReconnect')}</button>
-                    : <button onClick={dir.refresh} className={`${BTN_SECONDARY} !py-1.5 text-sm`}>{t('dirReload')}</button>}
-                  <button onClick={dir.disconnect} className={`${BTN_NEUTRAL} !py-1.5 text-sm`}>{t('dirDisconnect')}</button>
+                  {link.status === 'prompt'
+                    ? <button onClick={link.reconnect} className={`${BTN_PRIMARY} !py-1.5 text-sm`}>{t('dirReconnect')}</button>
+                    : <button onClick={link.refresh} className={`${BTN_SECONDARY} !py-1.5 text-sm`}>{t('dirReload')}</button>}
+                  <button onClick={link.disconnect} className={`${BTN_NEUTRAL} !py-1.5 text-sm`}>{t('dirDisconnect')}</button>
                 </div>
               </div>
             )}
@@ -2162,23 +2188,23 @@
                 )}
               </div>
               {/* Mit verbundenem Ordner stimmt «in diesem Browser» nicht mehr */}
-              {own.length > 0 && dir.status !== 'ok' && (
+              {own.length > 0 && link.status !== 'ok' && (
                 <p className="text-sm text-text-3 mt-2 px-2.5">{t('storedHint')}</p>
               )}
-              {dir.status === 'ok' && (
+              {link.status === 'ok' && (
                 <p className="text-sm text-text-3 mt-2 px-2.5">
-                  {t('storedHintDir', dir.name)}{' '}
-                  <button onClick={dir.refresh} className="underline font-semibold hover:text-text-2">{t('dirReload')}</button>
+                  {t('storedHintDir', link.name)}{' '}
+                  <button onClick={link.refresh} className="underline font-semibold hover:text-text-2">{t('dirReload')}</button>
                   {' · '}
-                  <button onClick={dir.disconnect} className="underline font-semibold hover:text-text-2">{t('dirDisconnect')}</button>
+                  <button onClick={link.disconnect} className="underline font-semibold hover:text-text-2">{t('dirDisconnect')}</button>
                 </p>
               )}
               {/* Ein einmaliger Einrichtungsschritt — hinter dem Zahnrad fände ihn
                   niemand. Nur wo er geht (Chrome/Edge am Computer). */}
-              {dir.status === 'none' && (
+              {link.status === 'none' && (
                 <p className="text-sm text-text-3 mt-2 px-2.5">
                   {t('dirOffer')}{' '}
-                  <button onClick={dir.connect} className="underline font-semibold hover:text-text-2">{t('dirChoose')}</button>
+                  <button onClick={link.connect} className="underline font-semibold hover:text-text-2">{t('dirChoose')}</button>
                 </p>
               )}
             </div>
@@ -2248,10 +2274,10 @@
           .filter((p) => p.question || p.answer);
         const name = title.trim();
         if (!name) return setError(t('errTitle'));
-        // Titel sind der Schlüssel beim Import (gleicher Titel = neue Version).
-        // Zwei gleichnamige Memories würden dort beide ersetzt — gar nicht erst
-        // entstehen lassen.
-        if (memories.some((m) => m.id !== memory.id && m.title === name)) {
+        // Ort (Ordner + Titel) und Datei sind der Schlüssel beim Import und beim
+        // Spiegeln in den Ordner: zwei Memories am selben Ort würden sich
+        // gegenseitig ersetzen bzw. überschreiben — gar nicht erst entstehen lassen.
+        if (memories.some((m) => m.id !== memory.id && sameSlot(m, { ...memory, title: name, dir }))) {
           return setError(t('errTitleTaken'));
         }
         if (!clean.length) return setError(t('errNoPair'));
@@ -2413,8 +2439,8 @@
       const createCards = () => {
         const cards = [];
         allPairs.forEach((pair, i) => {
-          cards.push({ id: `q-${i}`, content: pair.question, pairId: i, type: 'question' });
-          cards.push({ id: `a-${i}`, content: pair.answer, pairId: i, type: 'answer' });
+          cards.push({ id: `q-${i}`, content: pair.question, pairId: i });
+          cards.push({ id: `a-${i}`, content: pair.answer, pairId: i });
         });
         return shuffleArray(cards);
       };
@@ -2452,9 +2478,7 @@
         return fallback;
       };
       const cardCount = cards.length;
-      const isSmall = useSyncExternalStore(
-        (fn) => { SMALL_SCREEN.addEventListener('change', fn); return () => SMALL_SCREEN.removeEventListener('change', fn); },
-        () => SMALL_SCREEN.matches);
+      const isSmall = useSyncExternalStore(subscribeSmall, () => SMALL_SCREEN.matches);
       // Rückfall, wenn das Feld nicht ins Fenster passt (s. useBoardLayout)
       const fallbackCols = isSmall
         ? 3 // Handy: lieber scrollen als Kacheln, auf denen man nichts mehr liest
@@ -2700,7 +2724,7 @@
       const updateStore = (fn) => commit(fn(storeRef.current));
 
       // ---- Ordner auf der Platte (s. Abschnitt oben) ----
-      const [dir, setDir] = useState({ handle: null, status: dirSupported ? 'none' : 'unsupported' });
+      const [link, setLink] = useState({ handle: null, status: dirSupported ? 'none' : 'unsupported' });
       // Der Ordner, der gerade gelten soll: ein Auftrag, der erst nach dem
       // Trennen fertig wird, erkennt sich daran als überholt.
       const wanted = useRef(null);
@@ -2709,24 +2733,32 @@
       // zurückgeschrieben — sonst bügelte die App jede von Hand geschriebene
       // Datei in ihr eigenes Format.
       const mirrored = useRef(null);
+      const readCache = useRef(new Map()); // Dateien, die sich nicht geändert haben, nicht neu parsen
+      const known = useRef(new Set()); // ids, die wir in den Ordner geschrieben haben (s. fromDisk)
       // Alle Ordner-Zugriffe hintereinander: ein Nachlesen darf nicht in ein
       // halb geschriebenes Memory hineinlesen.
       const queue = useRef(Promise.resolve());
       const enqueue = (job) => (queue.current = queue.current.then(job).catch((e) => {
         console.error(e);
-        if (wanted.current) setDir((d) => ({ ...d, status: 'error' })); // nach dem Trennen schweigen
+        // nach dem Trennen schweigen; das Handle kommt von `wanted`, denn beim Start und
+        // beim ersten Verbinden steht es noch nicht im Zustand
+        if (wanted.current) setLink((d) => ({ handle: d.handle || wanted.current, status: 'error' }));
       }));
       const takeDisk = (handle, keepAll) => {
         wanted.current = handle;
         return enqueue(async () => {
-          const disk = await readDir(handle);
+          const seen = storeRef.current;
+          const disk = await readDir(handle, readCache.current);
           if (wanted.current !== handle) return;
-          const { next, onDisk } = fromDisk(storeRef.current, disk, keepAll);
+          // Hat sich der Store während des Lesens geändert, ist der Plattenstand
+          // veraltet (der Spiegel-Auftrag dazu steht erst hinter uns): nach ihm neu lesen.
+          if (storeRef.current !== seen) { takeDisk(handle, keepAll); return; }
+          const { next, onDisk } = fromDisk(storeRef.current, disk, keepAll, known.current);
           mirrored.current = onDisk;
           // Der Fokus liest bei jedem Fensterwechsel nach; hat sich nichts
           // getan, soll weder localStorage noch die Liste etwas davon merken.
           if (JSON.stringify(next) !== JSON.stringify(storeRef.current)) commit(next);
-          setDir((d) => (d.status === 'ok' && d.handle === handle ? d : { handle, status: 'ok' }));
+          setLink((d) => (d.status === 'ok' && d.handle === handle ? d : { handle, status: 'ok' }));
         });
       };
       useEffect(() => {
@@ -2734,26 +2766,29 @@
         loadDirHandle().then(async (handle) => {
           if (!handle) return;
           const perm = await handle.queryPermission({ mode: 'readwrite' });
-          if (perm === 'granted') takeDisk(handle, false); else setDir({ handle, status: 'prompt' });
+          if (perm === 'granted') takeDisk(handle, false); else setLink({ handle, status: 'prompt' });
         });
       }, []);
       useEffect(() => {
-        if (dir.status !== 'ok' || !mirrored.current || mirrored.current === store) return;
+        if (link.status !== 'ok' || !mirrored.current || mirrored.current === store) return;
         const base = mirrored.current;
         mirrored.current = store;
         // Nicht geschrieben heisst nicht gespiegelt: nach einem Fehler holt
         // sonst kein späterer Lauf die Änderung nach.
-        enqueue(() => (wanted.current !== dir.handle ? null : mirrorDir(dir.handle, base, store))
-          .catch((e) => { mirrored.current = base; throw e; }));
-      }, [store, dir]);
+        enqueue(async () => {
+          if (wanted.current !== link.handle) return; // Ordner inzwischen gewechselt oder getrennt
+          try { await mirrorDir(link.handle, base, store); } catch (e) { mirrored.current = base; throw e; }
+          store.memories.forEach((m) => known.current.add(m.id));
+        });
+      }, [store, link]);
       // Im Finder abgelegte oder gelöschte Dateien erscheinen beim Wechsel
       // zurück ins Fenster.
       useEffect(() => {
-        if (dir.status !== 'ok') return;
-        const onFocus = () => takeDisk(dir.handle, false);
+        if (link.status !== 'ok') return;
+        const onFocus = () => takeDisk(link.handle, false);
         window.addEventListener('focus', onFocus);
         return () => window.removeEventListener('focus', onFocus);
-      }, [dir.status, dir.handle]);
+      }, [link.status, link.handle]);
       const connectDir = async () => {
         let handle;
         try { handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'mymemory' }); }
@@ -2765,13 +2800,13 @@
       // Browser entstanden sind, bleiben trotzdem (sie tragen kein `disk`).
       const reconnectDir = async () => {
         try {
-          if ((await dir.handle.requestPermission({ mode: 'readwrite' })) === 'granted') takeDisk(dir.handle, false);
-        } catch { setDir((d) => ({ ...d, status: 'error' })); }
+          if ((await link.handle.requestPermission({ mode: 'readwrite' })) === 'granted') takeDisk(link.handle, false);
+        } catch { setLink((d) => ({ ...d, status: 'error' })); }
       };
-      const disconnectDir = () => { wanted.current = null; saveDirHandle(null); mirrored.current = null; setDir({ handle: null, status: 'none' }); };
+      const disconnectDir = () => { wanted.current = null; saveDirHandle(null); mirrored.current = null; readCache.current.clear(); known.current.clear(); setLink({ handle: null, status: 'none' }); };
       const dirApi = {
-        status: dir.status, name: dir.handle ? dir.handle.name : '',
-        connect: connectDir, reconnect: reconnectDir, disconnect: disconnectDir, refresh: () => takeDisk(dir.handle, false),
+        status: link.status, name: link.handle ? link.handle.name : '',
+        connect: connectDir, reconnect: reconnectDir, disconnect: disconnectDir, refresh: () => takeDisk(link.handle, false),
       };
 
       // Die eine Regel fürs Ablegen: das alte Exemplar raus, das neue rein,
@@ -2789,9 +2824,15 @@
       // nicht auf einen Ordner zieht, lässt das Memory liegen, wo es liegt.
       // Auch die id bleibt — sonst zeigten Lesezeichen auf «#local=<id>» ins Leere.
       const importMemory = (memory) => updateStore((prev) => {
-        const old = prev.memories.find((m) => m.title === memory.title);
-        return insertMemory(prev, old ? { ...old, ...memory, id: old.id } : memory,
-          (m) => m.title !== memory.title);
+        // Dasselbe Memory = gleicher Ort (Ordner + Titel) oder gleiche Datei. Ohne
+        // Zielordner zählt ein einziger Titeltreffer überall, sonst der Hauptordner:
+        // gleiche Titel in zwei Ordnern sind zwei Memories, keines darf das andere
+        // (und dessen Datei) mitnehmen.
+        const titled = prev.memories.filter((m) => m.title === memory.title);
+        const target = memory.dir === undefined && titled.length === 1 ? titled[0] : { dir: '', ...memory };
+        const old = prev.memories.find((m) => sameSlot(m, target));
+        return insertMemory(prev, old ? { ...old, ...memory, id: old.id } : { dir: '', ...memory },
+          (m) => !old || m.id !== old.id);
       });
 
       const saveMemory = (memory) => {
@@ -2804,9 +2845,10 @@
         updateStore((prev) => ({ ...prev, memories: prev.memories.filter((m) => m.id !== id) }));
 
       // ---- Ordner verwalten ----
-      // Die Namen kommen aus den Dialogen (s. AskModal); '/' muss raus, das
-      // trennt hier die Ebenen.
-      const cleanName = (name) => (name || '').trim().replace(/\//g, '-').replace(/^\.+$/, '-');
+      // Die Namen kommen aus den Dialogen (s. AskModal); '/' trennt hier die
+      // Ebenen, und was ein Dateisystem stört (: ? " …) kommt gar nicht erst in
+      // einen Ordnernamen — sonst hiesse der Ordner auf der Platte anders.
+      const cleanName = (name) => (name || '').replace(/[\\/:*?"<>|]+/g, '-').trim().replace(/^\.+$/, '-');
 
       const makeFolder = (parent, rawName) => {
         const name = cleanName(rawName);
@@ -2874,7 +2916,7 @@
           <Selection
             own={own} folders={folders}
             onOpen={openMemory} onEdit={editMemory} onNew={newMemory}
-            onImport={importMemory} onDelete={deleteMemory} folderApi={folderApi} dir={dirApi}
+            onImport={importMemory} onDelete={deleteMemory} folderApi={folderApi} link={dirApi}
           />
         );
     };
