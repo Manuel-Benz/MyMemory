@@ -80,9 +80,12 @@ Dazugekommen:
 - [x] **CLAUDE.md** angelegt.
 - [x] **Markenzug wie MyKahoot** (04.10.2026): Elefant rechts vom Titel, ohne Kachel,
   als Maske in `currentColor` (`logo-elefant.svg` aus `tools/make-logo.py`).
-- [x] **Einstellungen als Kästchen oben rechts** (04.10.2026): klappt über den Inhalt
-  auf statt die Spalte zu schieben; zu per Knopf, Klick daneben, Esc. Regel steht in
-  MySuite `DESIGN.md`.
+- [x] **Einstellungen wie MyKahoot** (04.10.2026): mit genug Platz am rechten
+  Fensterrand neben der (dafür schmaleren) Spalte, sonst über den Inhalt; zu per Knopf,
+  Klick daneben, Esc. Regel steht in MySuite `DESIGN.md`.
+- [x] **Rand oben** (04.10.2026): Hell 8-Bit-Pixel, Dunkel farbiges Neuronen-Netz —
+  dicht am oberen Rand, nach unten ausdünnend, Farben aus dem Schema.
+- [x] **Beispiele ausblenden** (04.10.2026): Auge-Knopf, zurück über die Einstellungen.
 
 ## Backlog
 
@@ -90,14 +93,13 @@ Dazugekommen:
   per `prefers-color-scheme` — wer «Hell» auf einem dunklen Mac erzwingt, bekommt den
   Dunkel-Akzent (Aubergine #A17BBC, weisse Schrift darauf nur 3.5:1). Lösung gehört
   nach MySuite (Schemen auch an `data-modus` hängen), nicht hierher.
+- **Layout ansprechender** (Skizzen 04.10.2026, noch nicht gewählt; 1 Tapete ist als
+  «Rand oben» umgesetzt): 2 Spieltisch aus Filz mit gemustertem Kartenrücken,
+  3 Wendeanimation in 3D + Paar fliegt zum Spieler, 4 gefundene Paare als gefächerter
+  Stapel pro Spieler, 5 Elefant als Maskottchen (zeigt, wer am Zug ist, reagiert auf Paare).
+
 - **Zissou + eigener Ton** (MySuite): `[data-schema="zissou"]` setzt `--akzent-ink`
   immer dunkel, auch wenn ein dunkler Ton (Tiefsee, Rost …) der Akzent ist.
-
-- **Layout ansprechender** (Skizzen 04.10.2026, noch nicht gewählt): 1 Art-déco-Tapete
-  als Grund (Tag/Nacht wie der Dschungel in MyKahoot), 2 Spieltisch aus Filz mit
-  gemustertem Kartenrücken, 3 Wendeanimation in 3D + Paar fliegt zum Spieler,
-  4 gefundene Paare als gefächerter Stapel pro Spieler, 5 Elefant als Maskottchen
-  (zeigt, wer am Zug ist, reagiert auf Paare).
 
 - **ZIP wieder einlesen**: der Import kennt nur `.txt`; ein aus dem Export
   gezogenes ZIP samt Ordnern zurückzuholen wäre das fehlende Gegenstück.

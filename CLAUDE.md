@@ -55,8 +55,18 @@ Deploy = `git push` auf `main` (GitHub Pages).
 - **Keine Kopfleiste** (wie MyKahoot): Startseite mit Markenzug (Titel, rechts
   daneben der Elefant ohne Kachel als Maske in `currentColor`, `logo-elefant.svg` aus
   `tools/make-logo.py` — nach neuem Icon neu erzeugen), im Spiel die bisherige Kopfzeile (Übersicht · Titel · Einstellungen).
-- **Einstellungen** (`<Settings />`): Symbolknopf oben rechts, das Kästchen klappt
-  darüber auf statt die Spalte zu schieben (wie MyKahoot, Regel in MySuite DESIGN.md).
+- **Einstellungen** (`<Settings />`, wie MyKahoot, Regel in MySuite DESIGN.md): ab
+  1200 px (Spiel 1360 px) wandern Knopf + Kästchen an den rechten Fensterrand und die
+  Spalte wird schmaler (`COLUMN`/`SETTINGS_DOCK`), darunter klappt das Kästchen über den
+  Inhalt. Nie schiebt es die Spalte nach unten.
+- **Rand oben** (wie Dschungel/Blut in MyKahoot): Hell = Pixel, Dunkel = Neuronen-Netz.
+  `hintergrund/*.svg` aus `tools/make-hintergrund.py`, je Farbschicht eine Maske, gefüllt
+  mit Schema-Tokens (`--akzent`, `--rad-N`, `--spiel-3`) — macht jedes Schema mit. Nach
+  Neuerzeugung `V` im Skript unter `<body>` (dort steht auch die Farbzuordnung der Schichten)
+  hochzählen. Frei stehender Text auf dem Rand (auch Titel, Lade-/Fehlertext): `.frei`;
+  Knöpfe darauf: `.auf-rand` (deckend, Hover als Schleier).
+- **Beispiele ausblendbar** (`mymemory_beispiele`, `useExamplesShown`): Auge-Knopf an der
+  Liste, zurück über die Einstellungen.
 - **Spielfarben:** Spieler 1 + Vorderseiten = `--spiel-1`, Spieler 2 + Rückseiten =
   `--spiel-4`, gefundene Paare `--gruen`, Kartenrücken = Akzent. `--spiel-2` bleibt
   aussen vor (in Budapest identisch mit dem Akzent). In «Isle of Dogs» sind `--spiel-1`/`-4` fast gleich: dort nimmt Spieler 2 `--blau`. Spielfarbe nur als Fläche/Punkt,

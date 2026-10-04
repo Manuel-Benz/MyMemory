@@ -29,6 +29,11 @@ umschalten; die Wahl merkt sich dann ihr Browser.
 **Aussehen** (My-Designsystem, wie die anderen My-Apps): Standard ist «Grand
 Budapest Hotel» mit Aubergine. In den Einstellungen lassen sich Farbschema,
 Akzentfarbe und Hell/Dunkel/System wählen — der Browser merkt sich die Wahl.
+Oben läuft ein Rand, der nach unten ausdünnt: hell bunte Pixel, dunkel ein leuchtendes
+Neuronen-Netz; beide nehmen die Farben des gewählten Schemas an.
+
+**Beispiele ausblenden**: das Auge-Symbol bei „Beispiele" blendet die eingebauten
+Memories aus; zurück holt man sie in den Einstellungen unter „Beispiele".
 
 ## Memory erstellen
 

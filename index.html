@@ -129,12 +129,35 @@
       -webkit-mask: url("logo-elefant.svg") center / contain no-repeat;
       mask: url("logo-elefant.svg") center / contain no-repeat;
     }
+
+    /* Rand oben, der nach unten ausdünnt (wie Dschungel/Blut in MyKahoot): Hell =
+       8-Bit-Pixel, Dunkel = Neuronen-Netz. Jede Farbschicht ist eine Maske aus
+       hintergrund/ (tools/make-hintergrund.py), gefüllt mit einem Token des Schemas —
+       so macht der Rand jedes Farbschema mit. Hinter allem (z-index −1), fest am Fenster. */
+    .rand { position: fixed; inset: 0 0 auto 0; height: 460px; z-index: -1; pointer-events: none; }
+    .rand > i { position: absolute; inset: 0; background: var(--c);
+      -webkit-mask: var(--m) left top / 1200px auto repeat-x; mask: var(--m) left top / 1200px auto repeat-x; }
+    .rand-hell { height: 220px; } /* wie die Pixel-Kacheln, sonst malt der Browser leere 240 px mit */
+    .rand-dunkel { display: none;
+      background: radial-gradient(ellipse 60% 70% at 50% 0%, color-mix(in srgb, var(--akzent) 16%, transparent), transparent 70%); }
+    :root[data-modus="dunkel"] .rand-dunkel { display: block; }
+    :root[data-modus="dunkel"] .rand-hell { display: none; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-modus="hell"]) .rand-dunkel { display: block; }
+      :root:not([data-modus="hell"]) .rand-hell { display: none; }
+    }
+    /* Was frei auf dem Rand steht (Titel, Untertitel), bekommt einen Hof in der Grundfarbe */
+    .frei { text-shadow: 0 0 12px var(--grund), 0 0 5px var(--grund), 0 0 2px var(--grund); }
     .knopf:disabled { opacity: .45; cursor: not-allowed; }
     /* Quadratische Symbolknöpfe, ruhig bis zum Darüberfahren */
     .symbol { flex: none; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
       border-radius: var(--radius); color: var(--text-2); background: transparent; transition: background .15s, color .15s; }
     .symbol:hover { background: var(--hover); color: var(--text); }
     .symbol.gefahr:hover { color: var(--rot-text); }
+    /* Knöpfe, die auf dem Rand stehen: deckende Fläche, sonst scheint er durch. Das
+       durchsichtige --hover legt sich beim Darüberfahren als Schleier darüber. */
+    .auf-rand { background-color: var(--karte); }
+    .auf-rand:hover { background-color: var(--karte); background-image: linear-gradient(var(--hover), var(--hover)); }
     /* Umschalter (Sprache, Darstellung, Schema) */
     .umschalter { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1px solid var(--linie); border-radius: var(--radius); }
     .umschalter button { padding: 4px 12px; border-radius: 7px; color: var(--text-2); font-size: 15px; }
@@ -157,14 +180,14 @@
     .liste-zeile:hover { background: var(--hover); }
     .liste-name { flex: 0 1 19rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       font-weight: 600; text-align: left; }
-    /* Die Zahl kürzt nie — auf dem Handy gibt der Name nach */
-    .liste-zahl { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; color: var(--text-3); white-space: nowrap; }
+    /* Die Zahl kürzt nie, der Name gibt nach — nur auf dem Handy dreht es sich um (s. unten) */
+    .liste-zahl { flex: 1 0 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; color: var(--text-3); white-space: nowrap; }
     /* Handy: der Name behält eine Mindestbreite, dafür gibt die Zahl nach, das Sprachkürzel
        entfällt und die Ordner rücken weniger ein — sonst verschwindet der Titel ab Ebene 2 */
     @media (max-width: 640px) {
       .symbol { width: 30px; height: 30px; }
       .liste-name { min-width: 4.5rem; }
-      .liste-zahl { padding: 0 4px; font-size: 14px; }
+      .liste-zahl { flex-shrink: 1; padding: 0 4px; font-size: 14px; }
       .liste-zahl .kuerzel { display: none; }
       .liste-ordner { margin-left: 6px; padding-left: 6px; }
     }
@@ -194,10 +217,29 @@
   </style>
 </head>
 <body>
+  <!-- Rand oben (s. .rand): Farbschichten als Masken, Farben aus dem Schema -->
+  <div class="rand rand-hell" aria-hidden="true"></div>
+  <div class="rand rand-dunkel" aria-hidden="true"></div>
+  <script>
+    // Datei i von tools/make-hintergrund.py trägt die i-te Farbe. V nach jedem Lauf des
+    // Skripts hochzählen, sonst hängt im Browser-Cache eine alte Schicht neben neuen.
+    // Läuft vor dem ersten Zeichnen, nichts blitzt auf.
+    (() => {
+      const V = 3;
+      const schichten = {
+        hell: ['pixel', ['--akzent', '--rad-1', '--rad-6', '--spiel-3']],
+        dunkel: ['neuro', ['--akzent', '--rad-1', '--rad-2', '--spiel-3', '--rad-5', '--rad-6', '--rad-7']],
+      };
+      for (const [modus, [name, farben]] of Object.entries(schichten)) {
+        document.querySelector('.rand-' + modus).innerHTML = farben
+          .map((farbe, i) => `<i style="--c: var(${farbe}); --m: url(hintergrund/${name}-${i}.svg?v=${V})"></i>`).join('');
+      }
+    })();
+  </script>
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo, useRef } = React;
+    const { useState, useEffect, useMemo, useRef, useSyncExternalStore } = React;
 
     // ---------- Browser-Speicher ----------
     // Der Browser darf jederzeit nein sagen (privates Fenster, voller Speicher) —
@@ -313,6 +355,8 @@
         importHint: 'Importierte Memories werden in diesem Browser gespeichert. Bewahre die Originaldatei trotzdem auf — leert der Browser seinen Speicher, importierst du sie einfach wieder.',
         myMemories: 'Meine Memories',
         examples: 'Beispiele',
+        hideExamples: 'Beispiele ausblenden',
+        examplesShown: { an: 'Anzeigen', aus: 'Ausblenden' },
         emptyList: 'Noch nichts da — oben ein Memory erstellen oder eine Datei hierher ziehen.',
         storedHint: 'Gespeichert in diesem Browser. Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze Memory. Memories und Ordner lassen sich per Ziehen umhängen.',
         nPairs: (n) => `${n} ${n === 1 ? 'Paar' : 'Paare'}`,
@@ -440,6 +484,8 @@
         importHint: 'Imported memories are stored in this browser. Keep the original file anyway — if the browser clears its storage, you simply import it again.',
         myMemories: 'My memories',
         examples: 'Examples',
+        hideExamples: 'Hide examples',
+        examplesShown: { an: 'Show', aus: 'Hide' },
         emptyList: 'Nothing here yet — create a memory above or drag a file here.',
         storedHint: 'Stored in this browser. To share: direct link or QR code — the whole memory is inside it. Memories and folders can be moved by dragging.',
         nPairs: (n) => `${n} ${n === 1 ? 'pair' : 'pairs'}`,
@@ -872,6 +918,21 @@
       };
     };
 
+    // Beispiele ein-/ausblenden: Knopf an der Beispiel-Liste, zurück über die
+    // Einstellungen — beide hören auf denselben Wert. Er steht im Speicher der Seite,
+    // nicht in localStorage: der Browser darf das Schreiben verweigern, und dann soll der
+    // Schalter trotzdem wirken (auch nach einem Wechsel Übersicht ↔ Spiel).
+    const EXAMPLES_KEY = 'mymemory_beispiele';
+    let examplesOn = readLocal(EXAMPLES_KEY, true) !== false;
+    const examplesListeners = new Set();
+    const subscribeExamples = (fn) => { examplesListeners.add(fn); return () => { examplesListeners.delete(fn); }; };
+    const setExamplesOn = (next) => {
+      examplesOn = next;
+      writeLocal(EXAMPLES_KEY, next);
+      examplesListeners.forEach((fn) => fn());
+    };
+    const useExamplesShown = () => [useSyncExternalStore(subscribeExamples, () => examplesOn), setExamplesOn];
+
     // Welche Ordner sind aufgeklappt? Überlebt das Neuladen der Seite.
     const OPEN_KEY = 'mymemory_open_dirs';
     const loadOpen = () => readLocal(OPEN_KEY, []) || [];
@@ -1164,6 +1225,7 @@
     // Farben, Knöpfe und Flächen kommen aus dem My-Designsystem (Klassen im
     // <style> oben, Werte aus design/css) — hier nur noch die Zusammenstellung.
     const SCREEN = 'min-h-screen';
+    const PAGE = `${SCREEN} p-4 sm:p-8 pt-14 sm:pt-20`; // Seite mit Rand oben: der Titel beginnt darunter
     const BTN_PRIMARY = 'knopf knopf-1';
     const BTN_SECONDARY = 'knopf knopf-2';
     const BTN_NEUTRAL = 'knopf knopf-n';
@@ -1282,6 +1344,14 @@
     const FolderIcon = () => (
       <Icon><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" /></Icon>
     );
+    const EyeOffIcon = () => (
+      <Icon>
+        <path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a17 17 0 0 1-2.4 3" />
+        <path d="M6.6 6.6C4.3 8.1 3 12 3 12s4 6 9 6a9 9 0 0 0 5.4-1.6" />
+        <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+        <path d="M3 3l18 18" />
+      </Icon>
+    );
     const TrashIcon = () => (
       <Icon>
         <path d="M4 7h16" />
@@ -1334,10 +1404,25 @@
     // Stellen der Seite stehen (Knopf im Kopf, Kästchen darunter). Es gibt sie
     // auf der Auswahlseite und im Spiel: wer über einen Link hereinkommt, sieht
     // die Übersicht nie und käme sonst nicht an die Sprache.
-    // Einstellungen wie in MyKahoot: oben rechts angeheftet, das Kästchen klappt
-    // darunter über den Inhalt auf, statt die mittlere Spalte nach unten zu schieben.
-    // Zu geht es per Knopf, Klick daneben oder Esc.
-    const Settings = () => {
+    // Einstellungen wie in MyKahoot: Hat es neben der mittleren Spalte Platz für das
+    // Kästchen, wandert alles an den Fensterrand oben rechts und klappt dort auf, ohne
+    // die Spalte zu überdecken. Damit das schon früh klappt, wird die Spalte dafür
+    // schmaler (COLUMN: höchstens Fenster − 2 × 22.5rem, also Kästchen 20rem + Rand
+    // auf beiden Seiten, damit sie mittig bleibt) — bis zur Untergrenze 480 px
+    // (Übersicht) bzw. 640 px (Spielfeld); darunter wäre sie zu eng. Sonst bleibt der
+    // Knopf in der Kopfzeile und das Kästchen klappt über den Inhalt — nie schiebt es
+    // die Spalte nach unten. Zu per Knopf, Klick daneben oder Esc.
+    // `wide`: Spalte des Spiels (max-w-5xl) statt der Übersicht (max-w-2xl). Die
+    // Klassen stehen ausgeschrieben da, sonst erzeugt Tailwind (CDN) sie nicht.
+    const SETTINGS_DOCK = {
+      narrow: 'min-[1200px]:fixed min-[1200px]:top-20 min-[1200px]:right-6 z-30',
+      wide: 'min-[1360px]:fixed min-[1360px]:top-20 min-[1360px]:right-6 z-30',
+    };
+    const COLUMN = {
+      narrow: 'max-w-2xl min-[1200px]:max-w-[min(42rem,calc(100vw-45rem))] mx-auto',
+      wide: 'max-w-5xl min-[1360px]:max-w-[min(64rem,calc(100vw-45rem))] mx-auto',
+    };
+    const Settings = ({ wide = false }) => {
       const [open, setOpen] = useState(false);
       const box = useRef(null);
       useEffect(() => {
@@ -1350,11 +1435,12 @@
       }, [open]);
       const [look, setLook] = useState(currentLook);
       const [modus, setModus] = useState(currentModus);
+      const [examplesShown, setExamplesShown] = useExamplesShown();
       const pickLook = (next) => { setLook(next); applyLook(next); };
       const pickModus = (next) => { setModus(next); applyModus(next); };
 
       const button = (
-        <IconButton onClick={() => setOpen((v) => !v)} title={t('settings')}><SettingsIcon /></IconButton>
+        <IconButton onClick={() => setOpen((v) => !v)} title={t('settings')} extra="auf-rand"><SettingsIcon /></IconButton>
       );
       const toggle = (items, active, pick) => (
         <div className="umschalter">
@@ -1374,7 +1460,7 @@
       );
       const scheme = SCHEMES.find((x) => x.id === look.schema);
       const panel = open && (
-        <div className={`${CARD} absolute right-0 top-full mt-2 z-30 w-80 max-w-[calc(100vw-2rem)] p-5 space-y-4 text-left shadow-[var(--schatten)]`}>
+        <div className={`${CARD} absolute right-0 top-full mt-2 z-30 w-80 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-9rem)] overflow-y-auto p-5 space-y-4 text-left shadow-[var(--schatten)]`}>
           <div>
             <div className={`${LABEL} mb-2`}>{t('language')}</div>
             {toggle(LANGS.map((l) => [l.id, l.name]), currentLang, changeLang)}
@@ -1382,6 +1468,11 @@
           <div>
             <div className={`${LABEL} mb-2`}>{t('look')}</div>
             {toggle(MODI.map((m) => [m, t('modi')[m]]), modus, pickModus)}
+          </div>
+          <div>
+            <div className={`${LABEL} mb-2`}>{t('examples')}</div>
+            {toggle(['an', 'aus'].map((k) => [k, t('examplesShown')[k]]), examplesShown ? 'an' : 'aus',
+              (k) => setExamplesShown(k === 'an'))}
           </div>
           <div>
             <div className={`${LABEL} mb-2`}>{t('scheme')}</div>
@@ -1409,7 +1500,7 @@
           </div>
         </div>
       );
-      return <div ref={box} className="relative shrink-0">{button}{panel}</div>;
+      return <div ref={box} className={`relative shrink-0 ${SETTINGS_DOCK[wide ? 'wide' : 'narrow']}`}>{button}{panel}</div>;
     };
 
     // ---------- Auswahlseite ----------
@@ -1417,6 +1508,7 @@
       const [toast, setToast] = useState(null);
       const [qr, setQr] = useState(null); // { title, url }
       const [createOpen, setCreateOpen] = useState(false);
+      const [examplesShown, setExamplesShown] = useExamplesShown();
       const [openDirs, setOpenDirs] = useState(loadOpen);
       const [dropDir, setDropDir] = useState(null); // Ordner, über dem gerade etwas schwebt
       const dragged = useRef(null); // { kind: 'memory'|'dir', id, dir? }
@@ -1682,17 +1774,17 @@
       );
 
       return (
-        <div className={`${SCREEN} p-4 sm:p-8`}>
-          <div className="max-w-2xl mx-auto">
+        <div className={PAGE}>
+          <div className={COLUMN.narrow}>
             {/* Keine Kopfleiste (wie MyKahoot): die Startseite trägt den Markenzug */}
             <div className="flex items-center gap-3 mb-1">
               <div className="flex-1 flex items-center gap-3 text-3xl sm:text-4xl">
-                <h1 className="font-bold">MyMemory</h1>
+                <h1 className="font-bold frei">MyMemory</h1>
                 <span className="logo" role="img" aria-label="MyMemory-Elefant" />
               </div>
               <Settings />
             </div>
-            <p className="text-text-2 mb-6">{t('subtitle')}</p>
+            <p className="text-text-2 mb-6 frei">{t('subtitle')}</p>
 
             <div className={`${CARD} mb-8`}>
               <button
@@ -1773,10 +1865,15 @@
               )}
             </div>
 
-            <div className={`${CARD} p-3 sm:p-4 mb-8`}>
-              <h2 className={`${LABEL} mb-2 pl-2.5`}>{t('examples')}</h2>
-              {DEMOS.map((m) => row(m, false))}
-            </div>
+            {examplesShown && (
+              <div className={`${CARD} p-3 sm:p-4 mb-8`}>
+                <div className="flex items-center gap-1 mb-2 pl-2.5">
+                  <h2 className={`${LABEL} flex-1`}>{t('examples')}</h2>
+                  <IconButton onClick={() => setExamplesShown(false)} title={t('hideExamples')}><EyeOffIcon /></IconButton>
+                </div>
+                {DEMOS.map((m) => row(m, false))}
+              </div>
+            )}
           </div>
 
           {dialog && <AskModal dialog={dialog} onClose={() => setDialog(null)} />}
@@ -1874,9 +1971,9 @@
       );
 
       return (
-        <div className={`${SCREEN} p-4 sm:p-8`}>
+        <div className={PAGE}>
           <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold mb-6">
+            <h1 className="text-2xl font-bold mb-6 frei">
               {memory.id ? t('editMemory') : t('newMemory')}
             </h1>
 
@@ -2094,20 +2191,20 @@
       const isGameComplete = matchedPairs.length === allPairs.length;
 
       return (
-        <div className={`${SCREEN} p-4 sm:p-8`}>
-          <div className="max-w-5xl mx-auto">
+        <div className={PAGE}>
+          <div className={COLUMN.wide}>
             {/* Kopfzeile als Reihe: der Titel bekommt, was zwischen den Knöpfen
                 bleibt — absolut gesetzte Knöpfe lägen auf dem Handy darüber */}
             <div className="flex items-center gap-2 mb-8">
               <button
                 onClick={onBack}
                 title={t('toOverview')}
-                className={`shrink-0 ${BTN_NEUTRAL} !px-4 !py-2`}
+                className={`shrink-0 ${BTN_NEUTRAL} auf-rand !px-4 !py-2`}
               >
                 ← {t('overview')}
               </button>
-              <h1 className="flex-1 min-w-0 text-2xl sm:text-4xl font-bold text-center break-words">{title}</h1>
-              <Settings />
+              <h1 className="flex-1 min-w-0 text-2xl sm:text-4xl font-bold text-center break-words frei">{title}</h1>
+              <Settings wide />
             </div>
 
             {/* Spielerinfo */}
@@ -2222,7 +2319,7 @@
       if (error) {
         return (
           <div className={`${SCREEN} p-8 flex flex-col items-center justify-center gap-4`}>
-            <div className="text-xl text-rot font-semibold text-center">{error}</div>
+            <div className="text-xl text-rot font-semibold text-center frei">{error}</div>
             <button onClick={onBack} className={BTN_PRIMARY}>
               {t('toOverview')}
             </button>
@@ -2230,7 +2327,7 @@
         );
       }
       if (!memory) {
-        return <div className={`${SCREEN} p-8 text-center text-text-2`}>{t('loading')}</div>;
+        return <div className={`${SCREEN} p-8 text-center text-text-2 frei`}>{t('loading')}</div>;
       }
       return <MemoryGame title={memory.title} allPairs={memory.pairs} onBack={onBack} />;
     };
@@ -2351,7 +2448,7 @@
           : own.find((m) => m.id === route.id);
         if (!target) {
           return (
-            <div className={`${SCREEN} p-8 text-center text-text-2`}>
+            <div className={`${SCREEN} p-8 text-center text-text-2 frei`}>
               {t('errGone')}
               <button onClick={back} className="block mx-auto mt-4 underline">{t('backToList')}</button>
             </div>
