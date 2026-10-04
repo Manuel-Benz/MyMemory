@@ -137,7 +137,7 @@
     .rand { position: fixed; inset: 0 0 auto 0; height: 460px; z-index: -1; pointer-events: none; }
     .rand > i { position: absolute; inset: 0; background: var(--c);
       -webkit-mask: var(--m) left top / 1200px auto repeat-x; mask: var(--m) left top / 1200px auto repeat-x; }
-    .rand-hell { height: 220px; } /* wie die Pixel-Kacheln, sonst malt der Browser leere 240 px mit */
+    .rand-hell { height: 300px; } /* wie die Pixel-Kacheln, sonst malt der Browser leere 160 px mit */
     .rand-dunkel { display: none;
       background: radial-gradient(ellipse 60% 70% at 50% 0%, color-mix(in srgb, var(--akzent) 16%, transparent), transparent 70%); }
     :root[data-modus="dunkel"] .rand-dunkel { display: block; }
@@ -225,7 +225,7 @@
     // Skripts hochzählen, sonst hängt im Browser-Cache eine alte Schicht neben neuen.
     // Läuft vor dem ersten Zeichnen, nichts blitzt auf.
     (() => {
-      const V = 3;
+      const V = 4;
       const schichten = {
         hell: ['pixel', ['--akzent', '--rad-1', '--rad-6', '--spiel-3']],
         dunkel: ['neuro', ['--akzent', '--rad-1', '--rad-2', '--spiel-3', '--rad-5', '--rad-6', '--rad-7']],
@@ -1415,8 +1415,8 @@
     // `wide`: Spalte des Spiels (max-w-5xl) statt der Übersicht (max-w-2xl). Die
     // Klassen stehen ausgeschrieben da, sonst erzeugt Tailwind (CDN) sie nicht.
     const SETTINGS_DOCK = {
-      narrow: 'min-[1200px]:fixed min-[1200px]:top-20 min-[1200px]:right-6 z-30',
-      wide: 'min-[1360px]:fixed min-[1360px]:top-20 min-[1360px]:right-6 z-30',
+      narrow: 'min-[1200px]:fixed min-[1200px]:top-3 min-[1200px]:right-3.5 z-30',
+      wide: 'min-[1360px]:fixed min-[1360px]:top-3 min-[1360px]:right-3.5 z-30',
     };
     const COLUMN = {
       narrow: 'max-w-2xl min-[1200px]:max-w-[min(42rem,calc(100vw-45rem))] mx-auto',

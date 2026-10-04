@@ -56,7 +56,8 @@ Deploy = `git push` auf `main` (GitHub Pages).
   daneben der Elefant ohne Kachel als Maske in `currentColor`, `logo-elefant.svg` aus
   `tools/make-logo.py` — nach neuem Icon neu erzeugen), im Spiel die bisherige Kopfzeile (Übersicht · Titel · Einstellungen).
 - **Einstellungen** (`<Settings />`, wie MyKahoot, Regel in MySuite DESIGN.md): ab
-  1200 px (Spiel 1360 px) wandern Knopf + Kästchen an den rechten Fensterrand und die
+  1200 px (Spiel 1360 px) wandern Knopf + Kästchen an den rechten Fensterrand (12/14 px
+  oben/rechts wie MyKahoot) und die
   Spalte wird schmaler (`COLUMN`/`SETTINGS_DOCK`), darunter klappt das Kästchen über den
   Inhalt. Nie schiebt es die Spalte nach unten.
 - **Rand oben** (wie Dschungel/Blut in MyKahoot): Hell = Pixel, Dunkel = Neuronen-Netz.

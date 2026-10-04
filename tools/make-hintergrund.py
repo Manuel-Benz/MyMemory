@@ -115,10 +115,10 @@ def neuro():
 
 
 # ---------- Pixel (Hell) ----------
-# Raster 12 px. Oben zwei volle Reihen, darunter fällt die Wahrscheinlichkeit; einzelne
+# Raster 16 px. Oben zwei volle Reihen, darunter fällt die Wahrscheinlichkeit; einzelne
 # Spalten «tropfen» weiter hinab. Schicht 0 = --akzent (der Grossteil), 1..3 = Rad-Farben.
 def pixel():
-    H, Q = 220, 12
+    H, Q = 300, 16
     rnd = random.Random(5)
     parts = [[] for _ in range(4)]
     drip = {cx: rnd.random() ** 3 * 0.6 for cx in range(W // Q)}  # Zusatztiefe je Spalte
@@ -128,7 +128,7 @@ def pixel():
             if cy < 2:
                 p = 1.0
             else:
-                streuung = (1 - t) ** 3.4
+                streuung = (1 - t) ** 3.0
                 tropfen = 1 - max(0, t - drip[cx]) * 4 if t < drip[cx] + 0.25 else 0  # Spalte bleibt bis drip[cx] voll
                 p = max(streuung, tropfen) * 0.92
             if rnd.random() >= p: continue
