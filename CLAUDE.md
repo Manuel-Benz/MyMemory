@@ -56,7 +56,7 @@ Deploy = `git push` auf `main` (GitHub Pages).
   Titel), im Spiel die bisherige Kopfzeile (Übersicht · Titel · Einstellungen).
 - **Spielfarben:** Spieler 1 + Vorderseiten = `--spiel-1`, Spieler 2 + Rückseiten =
   `--spiel-4`, gefundene Paare `--gruen`, Kartenrücken = Akzent. `--spiel-2` bleibt
-  aussen vor (in Budapest identisch mit dem Akzent). Spielfarbe nur als Fläche/Punkt,
+  aussen vor (in Budapest identisch mit dem Akzent). In «Isle of Dogs» sind `--spiel-1`/`-4` fast gleich: dort nimmt Spieler 2 `--blau`. Spielfarbe nur als Fläche/Punkt,
   Punktzahlen in `--text` (Rosa erreicht als Schrift nur 2:1).
 - **Eigener Umschalter Hell/Dunkel/System** (`data-modus`). Bekannte Grenze aus
   my-schemen.css: der Schema-Akzent folgt weiter dem OS-Modus.

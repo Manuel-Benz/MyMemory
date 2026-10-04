@@ -16,7 +16,8 @@
     (() => {
       const read = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
       const saved = read('mymemory_look');
-      const look = saved && ['fox', 'budapest', 'moonrise', 'zissou', 'isle'].includes(saved.schema)
+      // Ob die Schema-ID noch existiert, prüft die App (SCHEMES) und setzt sonst DEFAULT_LOOK.
+      const look = saved && typeof saved.schema === 'string'
         ? saved : { schema: 'budapest', ton: 3 }; // = DEFAULT_LOOK
       const modus = read('mymemory_modus');
       const html = document.documentElement;
@@ -80,10 +81,26 @@
          aussen vor — im Schema Budapest ist sie identisch mit dem Akzent (Aubergine). */
       --farbe-p1: var(--spiel-1);
       --farbe-p2: var(--spiel-4);
+      --ink-p1: var(--text); --ink-p2: var(--text); --ink-paar: var(--text);
       --flaeche-p1: color-mix(in oklab, var(--farbe-p1) 24%, var(--karte));
       --flaeche-p2: color-mix(in oklab, var(--farbe-p2) 24%, var(--karte));
-      --flaeche-paar: color-mix(in oklab, var(--gruen) 26%, var(--karte));
+      --flaeche-paar: color-mix(in oklab, var(--gruen) 36%, var(--karte));
       --schleier: color-mix(in srgb, var(--leiste) 55%, transparent);
+    }
+    /* Isle of Dogs: Spielfarbe 1 und 4 sind beide Beigebraun (Abstand unter der
+       Wahrnehmungsschwelle) — Spieler 2 nimmt dort das Blau des Schemas. */
+    [data-schema="isle"] { --farbe-p2: var(--blau); }
+    /* Ohne color-mix (Safari < 16.2, Chrome < 111) wären die Flächen sonst
+       ungültig und durchsichtig: dann deckende Spielfarben mit ihrer Schriftfarbe. */
+    @supports not (color: color-mix(in oklab, red, blue)) {
+      :root {
+        --flaeche-p1: var(--farbe-p1); --ink-p1: var(--spiel-1-ink);
+        --flaeche-p2: var(--farbe-p2); --ink-p2: var(--spiel-4-ink);
+        --flaeche-paar: var(--gruen); --ink-paar: #FFFFFF;
+        --schleier: rgba(32, 32, 34, .55);
+      }
+      [data-schema="isle"] { --ink-p2: #FFFFFF; }
+      .spieler.dran-1, .spieler.dran-2 { background: var(--zeile); }
     }
     body {
       background: var(--grund); color: var(--text);
@@ -132,8 +149,16 @@
     .liste-name { flex: 0 1 19rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       font-weight: 600; text-align: left; }
     /* Die Zahl kürzt nie — auf dem Handy gibt der Name nach */
-    .liste-zahl { flex: 1 0 auto; padding: 0 8px; color: var(--text-3); white-space: nowrap; }
-    @media (max-width: 640px) { .symbol { width: 30px; height: 30px; } .liste-zahl { padding: 0 4px; font-size: 14px; } }
+    .liste-zahl { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 8px; color: var(--text-3); white-space: nowrap; }
+    /* Handy: der Name behält eine Mindestbreite, dafür gibt die Zahl nach, das Sprachkürzel
+       entfällt und die Ordner rücken weniger ein — sonst verschwindet der Titel ab Ebene 2 */
+    @media (max-width: 640px) {
+      .symbol { width: 30px; height: 30px; }
+      .liste-name { min-width: 4.5rem; }
+      .liste-zahl { padding: 0 4px; font-size: 14px; }
+      .liste-zahl .kuerzel { display: none; }
+      .liste-ordner { margin-left: 6px; padding-left: 6px; }
+    }
     .liste-ordner { margin-left: 14px; padding-left: 10px; border-left: 2px solid var(--linie); }
     .ablage { border-radius: var(--radius); outline: 2px dashed transparent; outline-offset: -2px; transition: background .15s, outline-color .15s; }
     .ablage.ziel { background: var(--akzent-weich); outline-color: var(--akzent); }
@@ -147,9 +172,9 @@
     .punkt-2 { background: var(--farbe-p2); }
     .karte-ruecken { background: var(--akzent); color: var(--akzent-ink); }
     .karte-ruecken:hover { background: color-mix(in oklab, var(--akzent) 85%, var(--text)); }
-    .karte-frage { background: var(--flaeche-p1); color: var(--text); }
-    .karte-antwort { background: var(--flaeche-p2); color: var(--text); }
-    .karte-paar { background: var(--flaeche-paar); color: var(--text); }
+    .karte-frage { background: var(--flaeche-p1); color: var(--ink-p1); }
+    .karte-antwort { background: var(--flaeche-p2); color: var(--ink-p2); }
+    .karte-paar { background: var(--flaeche-paar); color: var(--ink-paar); }
     /* QR-Code: schwarz auf weiss, sonst liest ihn kein Handy — auch im Dunkelmodus */
     .qr { background: #FFFFFF; padding: 8px; border-radius: var(--radius); }
     }
@@ -186,17 +211,19 @@
     const MODUS_KEY = 'mymemory_modus';
     const DEFAULT_LOOK = { schema: 'budapest', ton: 3 }; // Aubergine
     const SCHEMES = [
-      { id: 'fox', name: 'Fantastic Mr. Fox', tones: ['Azid-Himmelblau', 'Dunkles Petrol', 'Moos-Oliv', 'Kürbis', 'Rost-Karmin', 'Schokolade', 'Pflaume', 'Altrosa', 'Bronze-Senf'] },
-      { id: 'budapest', name: 'Grand Budapest Hotel', tones: ['Indigoblau', 'Lobby-Violett', 'Aubergine', 'Orchidee', 'Magenta', 'Mauve-Taupe', "Mendl's Zuckerrosa", 'Himbeere', 'Messing-Gold'] },
-      { id: 'moonrise', name: 'Moonrise Kingdom', tones: ['Oliv-Khaki', 'Limette', 'Gras', 'Tanne', 'Seegrün', 'Petrol', 'Navy', 'Schieferblau', 'Suzy-Rot'] },
-      { id: 'zissou', name: 'The Life Aquatic', tones: ['Zissou-Rot', 'Orange', 'Gold', 'Oliv', 'Meerblau', 'Tiefsee', 'Rost', 'Mützenrosa', 'Petrol'] },
-      { id: 'isle', name: 'Isle of Dogs', tones: ['Sand', 'Kaffee', 'Rost', 'Taupe', 'Lavendel', 'Stroh', 'Moos', 'Schiefer', 'Altrosa'] },
+      { id: 'fox', name: 'Fantastic Mr. Fox' },
+      { id: 'budapest', name: 'Grand Budapest Hotel' },
+      { id: 'moonrise', name: 'Moonrise Kingdom' },
+      { id: 'zissou', name: 'The Life Aquatic' },
+      { id: 'isle', name: 'Isle of Dogs' },
     ];
     const MODI = ['system', 'hell', 'dunkel'];
 
-    const loadLook = () => {
-      const look = readLocal(LOOK_KEY);
-      return look && SCHEMES.some((x) => x.id === look.schema) ? look : DEFAULT_LOOK;
+    // Die Wahrheit steht am <html> (das Head-Skript hat sie dort gesetzt): so zeigen
+    // die Einstellungen immer, was gilt — auch wenn der Browser das Speichern verweigert.
+    const currentLook = () => {
+      const { schema, ton } = document.documentElement.dataset;
+      return { schema, ton: Number(ton) || null };
     };
     const applyLook = (look) => {
       writeLocal(LOOK_KEY, look);
@@ -204,7 +231,8 @@
       html.dataset.schema = look.schema;
       if (look.ton) html.dataset.ton = look.ton; else delete html.dataset.ton;
     };
-    const loadModus = () => (MODI.includes(readLocal(MODUS_KEY)) ? readLocal(MODUS_KEY) : 'system');
+    if (!SCHEMES.some((x) => x.id === currentLook().schema)) applyLook(DEFAULT_LOOK); // unbekannte ID im Speicher
+    const currentModus = () => document.documentElement.dataset.modus || 'system';
     const applyModus = (modus) => {
       writeLocal(MODUS_KEY, modus);
       const html = document.documentElement;
@@ -249,6 +277,13 @@
         scheme: 'Farbschema',
         tone: 'Akzentfarbe',
         toneDefault: 'Akzent des Schemas',
+        tones: {
+          fox: ['Azid-Himmelblau', 'Dunkles Petrol', 'Moos-Oliv', 'Kürbis', 'Rost-Karmin', 'Schokolade', 'Pflaume', 'Altrosa', 'Bronze-Senf'],
+          budapest: ['Indigoblau', 'Lobby-Violett', 'Aubergine', 'Orchidee', 'Magenta', 'Mauve-Taupe', "Mendl's Zuckerrosa", 'Himbeere', 'Messing-Gold'],
+          moonrise: ['Oliv-Khaki', 'Limette', 'Gras', 'Tanne', 'Seegrün', 'Petrol', 'Navy', 'Schieferblau', 'Suzy-Rot'],
+          zissou: ['Zissou-Rot', 'Orange', 'Gold', 'Oliv', 'Meerblau', 'Tiefsee', 'Rost', 'Mützenrosa', 'Petrol'],
+          isle: ['Sand', 'Kaffee', 'Rost', 'Taupe', 'Lavendel', 'Stroh', 'Moos', 'Schiefer', 'Altrosa'],
+        },
         createTitle: 'Memory erstellen',
         steps: (
           <>
@@ -369,6 +404,13 @@
         scheme: 'Colour scheme',
         tone: 'Accent colour',
         toneDefault: 'Accent of the scheme',
+        tones: {
+          fox: ['Acid sky blue', 'Dark teal', 'Moss olive', 'Pumpkin', 'Rust crimson', 'Chocolate', 'Plum', 'Dusty rose', 'Bronze mustard'],
+          budapest: ['Indigo blue', 'Lobby violet', 'Aubergine', 'Orchid', 'Magenta', 'Mauve taupe', "Mendl's sugar pink", 'Raspberry', 'Brass gold'],
+          moonrise: ['Olive khaki', 'Lime', 'Grass', 'Fir', 'Sea green', 'Teal', 'Navy', 'Slate blue', 'Suzy red'],
+          zissou: ['Zissou red', 'Orange', 'Gold', 'Olive', 'Sea blue', 'Deep sea', 'Rust', 'Cap pink', 'Teal'],
+          isle: ['Sand', 'Coffee', 'Rust', 'Taupe', 'Lavender', 'Straw', 'Moss', 'Slate', 'Dusty rose'],
+        },
         createTitle: 'Create a memory',
         steps: (
           <>
@@ -1165,7 +1207,7 @@
     // Quadratischer Symbolknopf (DESIGN.md, kompakte Liste); `danger` färbt
     // beim Darüberfahren rot — für Löschen.
     const IconButton = ({ onClick, title, danger = false, extra = '', children }) => (
-      <button onClick={onClick} title={title} aria-label={title}
+      <button onClick={(e) => { e.stopPropagation(); onClick(e); }} title={title} aria-label={title}
         className={`symbol ${danger ? 'gefahr' : ''} ${extra}`}>
         {children}
       </button>
@@ -1285,8 +1327,8 @@
     // die Übersicht nie und käme sonst nicht an die Sprache.
     const useSettings = () => {
       const [open, setOpen] = useState(false);
-      const [look, setLook] = useState(loadLook);
-      const [modus, setModus] = useState(loadModus);
+      const [look, setLook] = useState(currentLook);
+      const [modus, setModus] = useState(currentModus);
       const pickLook = (next) => { setLook(next); applyLook(next); };
       const pickModus = (next) => { setModus(next); applyModus(next); };
 
@@ -1340,7 +1382,7 @@
             <div className="flex flex-wrap items-center gap-2.5">
               {swatch('0', t('toneDefault'), 'var(--akzent)', !look.ton, () => pickLook({ ...look, ton: null }), look.schema)}
               <span className="w-px h-5 bg-linie" />
-              {scheme.tones.map((name, i) => swatch(i + 1, name, `var(--ton-${i + 1})`, look.ton === i + 1,
+              {t('tones')[scheme.id].map((name, i) => swatch(i + 1, name, `var(--ton-${i + 1})`, look.ton === i + 1,
                 () => pickLook({ ...look, ton: i + 1 })))}
             </div>
           </div>
@@ -1549,8 +1591,7 @@
 
       // Kompakte Liste (DESIGN.md): Name in fester Spalte, die Anzahl direkt
       // dahinter — so stehen die Zahlen untereinander. Die ganze Zeile startet
-      // das Spiel, die Symbolknöpfe fangen ihren Klick selbst ab.
-      const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+      // das Spiel, die Symbolknöpfe fangen ihren Klick selbst ab (IconButton).
       const row = (memory, deletable) => (
         <div
           key={memory.id}
@@ -1563,18 +1604,18 @@
             {t('nPairs', memory.pairs.length)}
             {memory.lang && <span className="kuerzel ml-2 align-[1px]">{memory.lang}</span>}
           </span>
-          <IconButton onClick={stop(() => exportOne(memory))} title={t('exportOne')} extra="hidden sm:inline-flex"><DownloadIcon /></IconButton>
-          <IconButton onClick={stop(() => copyLink(memory))} title={t('copyLink')}><LinkIcon /></IconButton>
-          <IconButton onClick={stop(() => showQr(memory))} title={t('showQr')}><QrIcon /></IconButton>
+          <IconButton onClick={() => exportOne(memory)} title={t('exportOne')} extra="hidden sm:inline-flex"><DownloadIcon /></IconButton>
+          <IconButton onClick={() => copyLink(memory)} title={t('copyLink')}><LinkIcon /></IconButton>
+          <IconButton onClick={() => showQr(memory)} title={t('showQr')}><QrIcon /></IconButton>
           {deletable && (
-            <IconButton onClick={stop(() => onEdit(memory))} title={t('edit')}><PenIcon /></IconButton>
+            <IconButton onClick={() => onEdit(memory)} title={t('edit')}><PenIcon /></IconButton>
           )}
           {deletable && (
             <IconButton
-              onClick={stop(() => setDialog({
+              onClick={() => setDialog({
                 kind: 'confirm', ok: t('del'), text: t('confirmDeleteMemory', memory.title),
                 onYes: () => onDelete(memory.id),
-              }))}
+              })}
               title={t('del')} danger
             ><TrashIcon /></IconButton>
           )}
@@ -1603,10 +1644,10 @@
                 <span className="truncate">{dirName(dir)}</span>
               </span>
               <span className="liste-zahl">{t('nMemories', count)}</span>
-              <IconButton onClick={stop(() => onNew(dir))} title={t('newMemoryHere')}><PlusIcon /></IconButton>
-              <IconButton onClick={stop(() => newFolder(dir))} title={t('newSubfolder')}><FolderIcon /></IconButton>
-              <IconButton onClick={stop(() => renameFolder(dir))} title={t('renameFolder')}><PenIcon /></IconButton>
-              <IconButton onClick={stop(() => dropFolder(dir))} title={t('deleteFolder')} danger><TrashIcon /></IconButton>
+              <IconButton onClick={() => onNew(dir)} title={t('newMemoryHere')}><PlusIcon /></IconButton>
+              <IconButton onClick={() => newFolder(dir)} title={t('newSubfolder')}><FolderIcon /></IconButton>
+              <IconButton onClick={() => renameFolder(dir)} title={t('renameFolder')}><PenIcon /></IconButton>
+              <IconButton onClick={() => dropFolder(dir)} title={t('deleteFolder')} danger><TrashIcon /></IconButton>
             </div>
             {isOpen && <div className="liste-ordner">{treeOf(dir)}</div>}
           </div>
