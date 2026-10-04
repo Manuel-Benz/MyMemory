@@ -77,33 +77,30 @@
       /* Signalfarben als Schrift: Orange/Grün erreichen auf Weiss nur ~3:1 */
       --rot-text: color-mix(in oklab, var(--rot) 80%, var(--text));
       --orange-text: color-mix(in oklab, var(--orange) 60%, var(--text));
-      /* Spiel: Karten tragen die Farbe dessen, der sie aufgedeckt bzw. das Paar
-         gefunden hat. Spielfarbe 2 bleibt
+      /* Spiel: zwei Kanäle auf jeder offenen Karte. Die Fläche sagt den Typ (Frage
+         hell, Antwort grau getönt — neutral, damit sie keiner Spielfarbe gleicht),
+         die Farbe sagt den Spieler (Ring beim Aufdecken, Balken am gefundenen Paar).
+         Spielfarbe 2 bleibt
          aussen vor — im Schema Budapest ist sie identisch mit dem Akzent (Aubergine). */
       --farbe-p1: var(--spiel-1);
       --farbe-p2: var(--spiel-4);
-      --ink-p1: var(--text); --ink-p2: var(--text);
       --flaeche-p1: color-mix(in oklab, var(--farbe-p1) 24%, var(--karte));
       --flaeche-p2: color-mix(in oklab, var(--farbe-p2) 24%, var(--karte));
-      /* Karten kräftiger als die Spielerfelder: auf dem Spielfeld müssen sich
-         die beiden Spieler auf einen Blick trennen lassen. */
-      --karte-p1: color-mix(in oklab, var(--farbe-p1) 42%, var(--karte));
-      --karte-p2: color-mix(in oklab, var(--farbe-p2) 42%, var(--karte));
+      --karte-antwort: color-mix(in oklab, var(--text) 15%, var(--karte));
       --schleier: color-mix(in srgb, var(--leiste) 55%, transparent);
     }
     /* Isle of Dogs: Spielfarbe 1 und 4 sind beide Beigebraun (Abstand unter der
        Wahrnehmungsschwelle) — Spieler 2 nimmt dort das Blau des Schemas. */
     [data-schema="isle"] { --farbe-p2: var(--blau); }
     /* Ohne color-mix (Safari < 16.2, Chrome < 111) wären die Flächen sonst
-       ungültig und durchsichtig: dann deckende Spielfarben mit ihrer Schriftfarbe. */
+       ungültig und durchsichtig: dann deckende Ersatzflächen. */
     @supports not (color: color-mix(in oklab, red, blue)) {
       :root {
-        --flaeche-p1: var(--farbe-p1); --ink-p1: var(--spiel-1-ink);
-        --flaeche-p2: var(--farbe-p2); --ink-p2: var(--spiel-4-ink);
-        --karte-p1: var(--farbe-p1); --karte-p2: var(--farbe-p2);
+        --flaeche-p1: var(--farbe-p1);
+        --flaeche-p2: var(--farbe-p2);
+        --karte-antwort: var(--zeile-linie);
         --schleier: rgba(32, 32, 34, .55);
       }
-      [data-schema="isle"] { --ink-p2: #FFFFFF; }
       .spieler.dran-1, .spieler.dran-2 { background: var(--zeile); }
     }
     body {
@@ -207,12 +204,15 @@
     .punkt-2 { background: var(--farbe-p2); }
     .karte-ruecken { background: var(--akzent); color: var(--akzent-ink); }
     .karte-ruecken:hover { background: color-mix(in oklab, var(--akzent) 85%, var(--text)); }
-    /* Offene Karte im laufenden Zug: Fläche + Rand in der Spielerfarbe, damit sie
-       aus den ruhigen, gefundenen Paaren (nur Fläche) heraussticht. */
-    .karte-1 { background: var(--karte-p1); color: var(--ink-p1); }
-    .karte-2 { background: var(--karte-p2); color: var(--ink-p2); }
-    .karte-1.offen { box-shadow: inset 0 0 0 3px var(--farbe-p1); }
-    .karte-2.offen { box-shadow: inset 0 0 0 3px var(--farbe-p2); }
+    .karte-frage { background: var(--karte); color: var(--text); box-shadow: inset 0 0 0 1px var(--linie); }
+    .karte-antwort { background: var(--karte-antwort); color: var(--text); }
+    /* Offene Karte im laufenden Zug: ringsum in der Farbe dessen, der dran ist —
+       sticht aus den ruhigen, gefundenen Paaren heraus. Gefunden: nur ein Balken
+       unten in der Farbe des Finders. */
+    .karte-frage.offen-1, .karte-antwort.offen-1 { box-shadow: inset 0 0 0 4px var(--farbe-p1); }
+    .karte-frage.offen-2, .karte-antwort.offen-2 { box-shadow: inset 0 0 0 4px var(--farbe-p2); }
+    .karte-frage.von-1, .karte-antwort.von-1 { box-shadow: inset 0 -8px 0 var(--farbe-p1); }
+    .karte-frage.von-2, .karte-antwort.von-2 { box-shadow: inset 0 -8px 0 var(--farbe-p2); }
     /* QR-Code: schwarz auf weiss, sonst liest ihn kein Handy — auch im Dunkelmodus */
     .qr { background: #FFFFFF; padding: 8px; border-radius: var(--radius); }
     }
@@ -234,7 +234,7 @@
     // Läuft vor dem ersten Zeichnen, nichts blitzt auf.
     (() => {
       // <rand-daten>
-      const V = 'fa002975', W = 1200, H = {'neuro': 460, 'pixel': 300};
+      const V = '5cebb188', W = 1200, H = {'neuro': 460, 'pixel': 300};
       // </rand-daten>
       const schichten = {
         hell: ['pixel', ['--akzent', '--rad-1', '--rad-6', '--spiel-3']],
@@ -371,10 +371,14 @@
         examplesShown: { an: 'Anzeigen', aus: 'Ausblenden' },
         emptyList: 'Noch nichts da — oben ein Memory erstellen oder eine Datei hierher ziehen.',
         storedHint: 'Gespeichert in diesem Browser. Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze Memory. Memories und Ordner lassen sich per Ziehen umhängen.',
-        storedHintDir: (name) => `Gespeichert als Dateien im Ordner «${name}». Zum Teilen: Direktlink oder QR-Code — darin steckt das ganze Memory. Memories und Ordner lassen sich per Ziehen umhängen, die Dateien wandern mit.`,
+        storedHintDir: (name) => `Gespeichert als Dateien im Ordner «${name}». Teilen per Direktlink oder QR-Code; umhängen per Ziehen.`,
         importHintDir: (name) => `Importierte Memories landen als .txt im Ordner «${name}».`,
         dirOffer: 'Die Memories können auch als Dateien in einem Ordner auf dem Computer liegen (wie in MyVoci) — dann bleiben sie, wenn der Browser aufräumt.',
         dirChoose: 'Ordner wählen',
+        dirTitle: 'Ordner auf dem Computer',
+        dirShort: 'Die Memories liegen als .txt-Dateien in einem Ordner deiner Wahl statt nur im Browser — am besten einen Ordner «MyMemory» in «Dokumente» anlegen (wie bei MyVoci und MyKahoot).',
+        dirUnsupported: 'Geht nur in Chrome oder Edge am Computer — Safari und iPad können keinen Ordner öffnen.',
+        dirConnected: (name, n) => `Verbunden mit «${name}» — ${n} ${n === 1 ? 'Memory' : 'Memories'}`,
         dirReload: 'Neu laden',
         dirDisconnect: 'Trennen',
         dirPrompt: (name) => `Der Ordner «${name}» braucht deine Freigabe, bevor die Memories dort gespeichert werden.`,
@@ -509,10 +513,14 @@
         examplesShown: { an: 'Show', aus: 'Hide' },
         emptyList: 'Nothing here yet — create a memory above or drag a file here.',
         storedHint: 'Stored in this browser. To share: direct link or QR code — the whole memory is inside it. Memories and folders can be moved by dragging.',
-        storedHintDir: (name) => `Stored as files in the folder “${name}”. To share: direct link or QR code — the whole memory is inside it. Memories and folders can be moved by dragging, and the files move along.`,
+        storedHintDir: (name) => `Stored as files in the folder “${name}”. Share via direct link or QR code; move things by dragging.`,
         importHintDir: (name) => `Imported memories are saved as .txt in the folder “${name}”.`,
         dirOffer: 'Your memories can also live as files in a folder on this computer (like in MyVoci) — then they survive a browser clean-up.',
         dirChoose: 'Choose folder',
+        dirTitle: 'Folder on this computer',
+        dirShort: 'Your memories live as .txt files in a folder of your choice instead of only in the browser — ideally create a folder “MyMemory” in “Documents” (like MyVoci and MyKahoot).',
+        dirUnsupported: 'Only works in Chrome or Edge on a computer — Safari and iPad cannot open a folder.',
+        dirConnected: (name, n) => `Connected to “${name}” — ${n} ${n === 1 ? 'memory' : 'memories'}`,
         dirReload: 'Reload',
         dirDisconnect: 'Disconnect',
         dirPrompt: (name) => `The folder “${name}” needs your permission before the memories are saved there.`,
@@ -1737,7 +1745,9 @@
       narrow: 'max-w-2xl min-[1200px]:max-w-[min(42rem,calc(100vw-45rem))] mx-auto',
       wide: 'max-w-5xl min-[1360px]:max-w-[min(64rem,calc(100vw-45rem))] mx-auto',
     };
-    const Settings = ({ wide = false }) => {
+    // `link`/`count`: nur die Übersicht reicht den Ordner herein (wie MyVoci); im
+    // Spiel gibt es dort nichts zu verwalten.
+    const Settings = ({ wide = false, link = null, count = 0 }) => {
       const [open, setOpen] = useState(false);
       const box = useRef(null);
       useEffect(() => {
@@ -1813,6 +1823,21 @@
                 () => pickLook({ ...look, ton: i + 1 })))}
             </div>
           </div>
+          {link && (
+            <div>
+              <div className={`${LABEL} mb-2`}>{t('dirTitle')}</div>
+              <p className="text-sm text-text-2 mb-3">{link.status === 'unsupported' ? t('dirUnsupported') : t('dirShort')}</p>
+              {link.status === 'ok' && <p className="text-sm text-text-2 mb-3">{t('dirConnected', link.name, count)}</p>}
+              {/* «Freigeben» und «nicht erreichbar» stehen schon als Streifen über
+                  der Liste — hier nur die Knöpfe. */}
+              <div className="flex flex-wrap gap-2">
+                {link.status === 'none' && <button onClick={link.connect} className={`${BTN_SECONDARY} !px-3 !py-1.5 text-sm`}>{t('dirChoose')}</button>}
+                {link.status === 'prompt' && <button onClick={link.reconnect} className={`${BTN_PRIMARY} !px-3 !py-1.5 text-sm`}>{t('dirReconnect')}</button>}
+                {(link.status === 'ok' || link.status === 'error') && <button onClick={link.refresh} className={`${BTN_NEUTRAL} !px-3 !py-1.5 text-sm`}>{t('dirReload')}</button>}
+                {link.status !== 'none' && link.status !== 'unsupported' && <button onClick={link.disconnect} className={`${BTN_NEUTRAL} !px-3 !py-1.5 text-sm`}>{t('dirDisconnect')}</button>}
+              </div>
+            </div>
+          )}
         </div>
       );
       return <div ref={box} className={`relative shrink-0 ${SETTINGS_DOCK[wide ? 'wide' : 'narrow']}`}>{button}{panel}</div>;
@@ -2097,7 +2122,7 @@
                 <h1 className="font-bold frei">MyMemory</h1>
                 <span className="logo" role="img" aria-label="MyMemory-Elefant" />
               </div>
-              <Settings />
+              <Settings link={link} count={own.length} />
             </div>
             <p className="text-text-2 mb-6 frei">{t('subtitle')}</p>
 
@@ -2194,12 +2219,7 @@
                 <p className="text-sm text-text-3 mt-2 px-2.5">{t('storedHint')}</p>
               )}
               {link.status === 'ok' && (
-                <p className="text-sm text-text-3 mt-2 px-2.5">
-                  {t('storedHintDir', link.name)}{' '}
-                  <button onClick={link.refresh} className="underline font-semibold hover:text-text-2">{t('dirReload')}</button>
-                  {' · '}
-                  <button onClick={link.disconnect} className="underline font-semibold hover:text-text-2">{t('dirDisconnect')}</button>
-                </p>
+                <p className="text-sm text-text-3 mt-2 px-2.5">{t('storedHintDir', link.name)}</p>
               )}
               {/* Ein einmaliger Einrichtungsschritt — hinter dem Zahnrad fände ihn
                   niemand. Nur wo er geht (Chrome/Edge am Computer). */}
@@ -2441,8 +2461,8 @@
       const createCards = () => {
         const cards = [];
         allPairs.forEach((pair, i) => {
-          cards.push({ id: `q-${i}`, content: pair.question, pairId: i });
-          cards.push({ id: `a-${i}`, content: pair.answer, pairId: i });
+          cards.push({ id: `q-${i}`, content: pair.question, pairId: i, type: 'question' });
+          cards.push({ id: `a-${i}`, content: pair.answer, pairId: i, type: 'answer' });
         });
         return shuffleArray(cards);
       };
@@ -2599,8 +2619,8 @@
                   >
                     <div ref={i === 0 ? tileRef : null} className={`w-full h-full rounded-xl flex items-center justify-center overflow-hidden p-2 sm:p-3 text-sm sm:text-lg font-bold text-center transition-colors duration-300 ${
                       !flipped ? 'karte-ruecken'
-                        : matched ? `karte-${foundBy[card.pairId]}`
-                        : `karte-${currentPlayer} offen`
+                        : `${card.type === 'question' ? 'karte-frage' : 'karte-antwort'} ${
+                          matched ? `von-${foundBy[card.pairId]}` : `offen-${currentPlayer}`}`
                     }`}>
                       {flipped ? (
                         <FitText content={card.content} fit={fontSizeFor(card.content)} />
@@ -2639,9 +2659,16 @@
                       </div>
                     ))}
                   </div>
-                  <button onClick={resetGame} className={`w-full ${BTN_PRIMARY}`}>
-                    {t('playAgain')}
-                  </button>
+                  {/* Meist geht es danach mit einem anderen Memory weiter —
+                      nochmals dasselbe ist die Ausnahme. */}
+                  <div className="flex flex-col gap-2">
+                    <button onClick={onBack} className={`w-full ${BTN_PRIMARY}`}>
+                      {t('toOverview')}
+                    </button>
+                    <button onClick={resetGame} className={`w-full ${BTN_NEUTRAL}`}>
+                      {t('playAgain')}
+                    </button>
+                  </div>
               </Modal>
             )}
           </div>
@@ -2793,7 +2820,9 @@
       }, [link.status, link.handle]);
       const connectDir = async () => {
         let handle;
-        try { handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'mymemory' }); }
+        // Beim ersten Mal in «Dokumente», wo auch MyVoci und MyKahoot liegen; danach
+        // merkt sich der Browser über `id` den zuletzt gewählten Ort.
+        try { handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'mymemory', startIn: 'documents' }); }
         catch { return; } // abgebrochen
         await saveDirHandle(handle);
         takeDisk(handle, true);

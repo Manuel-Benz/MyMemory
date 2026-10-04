@@ -19,6 +19,8 @@ Editor prüfen dagegen; `known`-Ref (ids, die wir geschrieben haben) statt nur
 `disk`-Flag; `readDir` liest gebündelt und cached nach Grösse + Änderungszeit;
 `takeDisk` verwirft einen Lesestand, wenn sich der Store währenddessen geändert hat.
 Ordnernamen gehen durch `cleanName` (keine Dateisystem-Zeichen).
+Ordner wählen wie MyVoci: Angebot unter der Liste, Knöpfe (wählen/freigeben/neu laden/trennen)
+in den Einstellungen der Übersicht; der Picker startet in «Dokumente» (`startIn`).
 
 ## Befehle
 
@@ -78,13 +80,16 @@ Deploy = `git push` auf `main` (GitHub Pages).
   `hintergrund/*.svg` aus `tools/make-hintergrund.py`, je Farbschicht eine Maske, gefüllt
   mit Schema-Tokens (`--akzent`, `--rad-N`, `--spiel-3`) — macht jedes Schema mit. Das
   Skript schreibt Version `V` und Kachelmasse selbst in `index.html` (Marken «rand-daten»);
-  die Farbzuordnung der Schichten steht im Skript unter `<body>`. Frei stehender Text auf dem Rand (auch Titel, Lade-/Fehlertext): `.frei`;
+  die Farbzuordnung der Schichten steht im Skript unter `<body>`. Keine SVG-Filter in den
+  Masken (Hof = radialer Verlauf): jeder Filter wird pro Element gerastert und bremst. Frei stehender Text auf dem Rand (auch Titel, Lade-/Fehlertext): `.frei`;
   Knöpfe darauf: `.auf-rand` (deckend, Hover als Schleier).
 - **Beispiele ausblendbar** (`mymemory_beispiele`, `useExamplesShown`): Auge-Knopf an der
   Liste, zurück über die Einstellungen.
 - **Spielfarben:** Spieler 1 = `--spiel-1`, Spieler 2 =
-  `--spiel-4`; offene Karten (mit Rand) und gefundene Paare tragen die Farbe des Spielers, Kartenrücken = Akzent. `--spiel-2` bleibt
-  aussen vor (in Budapest identisch mit dem Akzent). In «Isle of Dogs» sind `--spiel-1`/`-4` fast gleich: dort nimmt Spieler 2 `--blau`. Spielfarbe nur als Fläche/Punkt,
+  `--spiel-4`. Offene Karten zeigen zwei Kanäle: Fläche = Typ (Frage `--karte`, Antwort
+  grau getönt `--karte-antwort`, bewusst ohne Farbton), Spielerfarbe = Ring beim Aufdecken bzw.
+  Balken unten am gefundenen Paar. Kartenrücken = Akzent. `--spiel-2` bleibt
+  aussen vor (in Budapest identisch mit dem Akzent). In «Isle of Dogs» sind `--spiel-1`/`-4` fast gleich: dort nimmt Spieler 2 `--blau`. Spielfarbe nur als Fläche/Punkt/Ring,
   Punktzahlen in `--text` (Rosa erreicht als Schrift nur 2:1).
 - **Eigener Umschalter Hell/Dunkel/System** (`data-modus`). Bekannte Grenze aus
   my-schemen.css: der Schema-Akzent folgt weiter dem OS-Modus.

@@ -28,6 +28,25 @@ def save(name, h, body, defs=''):
         f'<defs>{defs}</defs>{body}</svg>')
 
 
+def merged(items):
+    """Linien gleicher Strichstärke und Deckkraft als EIN Pfad: weniger Elemente,
+    die der Browser für die Maske einzeln rastern muss."""
+    groups = {}
+    for key, d in items: groups.setdefault(key, []).append(d)
+    return [f'<path d="{"".join(ds)}" stroke="#000" stroke-width="{sw}" fill="none" opacity="{a}"/>'
+            for (sw, a), ds in groups.items()]
+
+
+def shifts(x_min, x_max, margin=4):
+    """Versätze, unter denen ein Element sichtbar ist: 0 und, wenn es über eine Kante
+    ragt, die Kopie auf der anderen Seite. Alles dreifach zu zeichnen kostete das
+    Dreifache an Datei und Malzeit für Kopien, die ganz ausserhalb liegen."""
+    out = [0]
+    if x_min < margin: out.append(W)
+    if x_max > W - margin: out.append(-W)
+    return out
+
+
 def wrapped(x, margin):
     """x und, falls nahe am Rand, die Kopie auf der anderen Seite (nahtlos in x)."""
     xs = [x]
@@ -45,6 +64,7 @@ def neuro():
     rnd = random.Random(11)
     layers = 7
     parts = [[] for _ in range(layers)]
+    lines = [[] for _ in range(layers)]  # ((Strich, Deckkraft), d) → merged()
     fade = lambda y: max(0.0, 1 - y / (H - 20)) ** 1.3
 
     nodes = []
@@ -71,9 +91,8 @@ def neuro():
             bend = rnd.uniform(-0.25, 0.25)
             layer = c if rnd.random() < 0.55 else 0          # farbig oder feine Faser
             sw = 1.4 if layer else 0.9
-            for dx in (0, -W, W):
-                parts[layer].append(f'<path d="{path_d(x + dx, y, u + dx, v, bend)}" stroke="#000" stroke-width="{sw}" '
-                                    f'fill="none" opacity="{a:.2f}"/>')
+            for dx in shifts(min(x, u) - 30, max(x, u) + 30):  # ±30: Bogen der Kurve
+                lines[layer].append(((sw, f'{a:.2f}'), path_d(x + dx, y, u + dx, v, bend)))
             # Impuls unterwegs: ein Punkt auf einem Teil der Verbindungen
             if rnd.random() < 0.3:
                 t = rnd.random()
@@ -93,28 +112,31 @@ def neuro():
             pts.append((x, y))
             if rnd.random() < 0.18:  # Seitenast (Dendrit)
                 bx, by = x + rnd.choice((-1, 1)) * rnd.uniform(14, 30), y + rnd.uniform(6, 20)
-                for dx in (0, -W, W):
-                    parts[c].append(f'<path d="M{x + dx:.1f} {y:.1f}L{bx + dx:.1f} {by:.1f}" stroke="#000" stroke-width="1" '
-                                    f'opacity="{0.8 * fade(by):.2f}"/>')
-        d = 'M' + 'L'.join(f'{px:.1f} {py:.1f}' for px, py in pts)
-        for dx in (0, -W, W):
-            parts[c].append(f'<path d="{d}" transform="translate({dx} 0)" stroke="#000" stroke-width="1.3" fill="none" '
-                            f'opacity="{0.75 * fade(length / 2):.2f}"/>')
+                for dx in shifts(min(x, bx), max(x, bx)):
+                    lines[c].append(((1, f'{0.8 * fade(by):.2f}'), f'M{x + dx:.1f} {y:.1f}L{bx + dx:.1f} {by:.1f}'))
+        xs = [px for px, _ in pts]
+        for dx in shifts(min(xs), max(xs)):
+            d = 'M' + 'L'.join(f'{px + dx:.1f} {py:.1f}' for px, py in pts)
+            lines[c].append(((1.3, f'{0.75 * fade(length / 2):.2f}'), d))
         ex, ey = pts[-1]
         nodes.append((ex, ey, c, 0.9))
 
-    # Zellen: Hof (weichgezeichnet) + Kern, gross oben, klein unten
+    # Zellen: Hof + Kern, gross oben, klein unten. Der Hof ist ein radialer Verlauf
+    # statt eines Weichzeichners (feGaussianBlur): sieht gleich aus, aber der Browser
+    # muss nicht für jede der Hunderte Zellen ein eigenes Filterbild rechnen — das
+    # machte das Laden im Dunkelmodus zäh.
     for x, y, c, s in nodes:
         f = fade(y)
         if f < 0.04: continue
         r = (1.6 + s * 3.2) * (0.5 + 0.5 * f)
-        for qx in wrapped(x, 20):
-            parts[c].append(f'<circle cx="{qx:.1f}" cy="{y:.1f}" r="{r * 3.2:.1f}" fill="#000" opacity="{0.28 * f:.2f}" filter="url(#hof)"/>')
+        for qx in wrapped(x, 4 * r + 8):
+            parts[c].append(f'<circle cx="{qx:.1f}" cy="{y:.1f}" r="{r * 3.2 + 8:.1f}" fill="url(#hof)" opacity="{0.28 * f:.2f}"/>')
             parts[c].append(f'<circle cx="{qx:.1f}" cy="{y:.1f}" r="{r:.1f}" fill="#000" opacity="{min(1, 0.4 + f):.2f}"/>')
 
-    defs = '<filter id="hof" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="4"/></filter>'
+    defs = ('<radialGradient id="hof"><stop offset="0" stop-opacity=".75"/><stop offset=".45" stop-opacity=".5"/>'
+            '<stop offset="1" stop-opacity="0"/></radialGradient>')
     for i, p in enumerate(parts):
-        save(f'neuro-{i}.svg', H, ''.join(p), defs)
+        save(f'neuro-{i}.svg', H, ''.join(merged(lines[i]) + p), defs)
 
 
 # ---------- Pixel (Hell) ----------

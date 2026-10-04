@@ -15,10 +15,14 @@ Dazugekommen:
   leer), Umhängen von Memories und Ordnern per Drag & Drop, Dateien direkt auf
   einen Ordner ziehbar. Gespeichert wird neu `{ memories, folders }`.
 - **Ordner auf dem Computer** wie in MyVoci (Chrome/Edge): unter der Liste
-  «Ordner wählen», danach liegen die Memories als `.txt` dort (Unterordner =
+  «Ordner wählen», dazu ein Abschnitt in den Einstellungen (wählen/freigeben/
+  neu laden/trennen); der Picker startet in «Dokumente». Danach liegen die Memories als `.txt` dort (Unterordner =
   Ordner), Änderungen im Finder kommen beim Fensterwechsel herein.
-- **Spielfarben pro Spieler**: offene Karten mit Rand in der Farbe des Spielers
-  am Zug, gefundene Paare behalten die Farbe dessen, der sie fand.
+- **Karten zeigen Typ und Spieler**: Fläche = Frage (hell) / Antwort (grau
+  getönt), Spielerfarbe = Ring beim Aufdecken, Balken unten am gefundenen Paar.
+- **Spielende**: «Zur Übersicht» als Hauptknopf, «Nochmal spielen» darunter.
+- **Dunkler Rand schneller**: Höfe als Verlauf statt Weichzeichner, Kopien nur
+  an den Kanten, Linien zusammengefasst (290 → 107 KB).
 - **Umbruch**: erst ganze Wörter (Schrift kleiner), dann Silbentrennung, erst
   zuletzt mitten im Wort. Wörter ab 14 Buchstaben dürfen gleich getrennt
   werden, sonst zwängt ein einziges Kompositum das ganze Feld klein.
