@@ -80,7 +80,10 @@ Deploy = `git push` auf `main` (GitHub Pages).
   `hintergrund/*.svg` aus `tools/make-hintergrund.py`, je Farbschicht eine Maske, gefüllt
   mit Schema-Tokens (`--akzent`, `--rad-N`, `--spiel-3`) — macht jedes Schema mit. Das
   Skript schreibt Version `V` und Kachelmasse selbst in `index.html` (Marken «rand-daten»);
-  die Farbzuordnung der Schichten steht im Skript unter `<body>`. Keine SVG-Filter in den
+  Daten und Farbzuordnung stehen im Skript im `<head>`, das die Masken des aktuellen
+  Modus per Preload vorlädt (mit `crossOrigin`, sonst lädt die Maske doppelt) — die
+  CDN-Skripte blockieren den Parser, ohne Preload kam der Rand erst nach Babel (~2,5 s).
+  Das Skript unter `<body>` füllt nur noch die Divs (`myRand`). Keine SVG-Filter in den
   Masken (Hof = radialer Verlauf): jeder Filter wird pro Element gerastert und bremst. Frei stehender Text auf dem Rand (auch Titel, Lade-/Fehlertext): `.frei`;
   Knöpfe darauf: `.auf-rand` (deckend, Hover als Schleier).
 - **Beispiele ausblendbar** (`mymemory_beispiele`, `useExamplesShown`): Auge-Knopf an der

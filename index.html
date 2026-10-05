@@ -25,6 +25,29 @@
       const ton = look.ton;
       if (ton) html.dataset.ton = ton;
       if (modus === 'hell' || modus === 'dunkel') html.dataset.modus = modus;
+
+      // Rand oben (s. .rand): Datei i von tools/make-hintergrund.py trägt die
+      // i-te Farbe. Version (gegen alte Schichten im Browser-Cache) und
+      // Kachelmasse schreibt das Skript selbst hierher. Die Daten stehen schon
+      // hier, damit die Masken des aktuellen Modus per Preload laden: die
+      // CDN-Skripte unten blockieren den Parser, der <body> mit dem Rand käme
+      // sonst erst nach Babel dran. `crossOrigin` wie bei Masken, sonst lädt
+      // jede Datei zweimal.
+      // <rand-daten>
+      const V = '5cebb188', W = 1200, H = {'neuro': 460, 'pixel': 300};
+      // </rand-daten>
+      const schichten = {
+        hell: ['pixel', ['--akzent', '--rad-1', '--rad-6', '--spiel-3']],
+        dunkel: ['neuro', ['--akzent', '--rad-1', '--rad-2', '--spiel-3', '--rad-5', '--rad-6', '--rad-7']],
+      };
+      const datei = (name, i) => `hintergrund/${name}-${i}.svg?v=${V}`;
+      window.myRand = { W, H, schichten, datei };
+      const [name, farben] = schichten[html.dataset.modus || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dunkel' : 'hell')];
+      farben.forEach((_, i) => {
+        const link = document.createElement('link');
+        link.rel = 'preload'; link.as = 'image'; link.crossOrigin = 'anonymous'; link.href = datei(name, i);
+        document.head.appendChild(link);
+      });
     })();
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -229,22 +252,14 @@
   <div class="rand rand-hell" aria-hidden="true"></div>
   <div class="rand rand-dunkel" aria-hidden="true"></div>
   <script>
-    // Datei i von tools/make-hintergrund.py trägt die i-te Farbe. Version (gegen alte
-    // Schichten im Browser-Cache) und Kachelmasse schreibt das Skript selbst hierher.
-    // Läuft vor dem ersten Zeichnen, nichts blitzt auf.
+    // Daten aus dem Skript im <head> (myRand). Läuft vor dem ersten Zeichnen, nichts blitzt auf.
     (() => {
-      // <rand-daten>
-      const V = '5cebb188', W = 1200, H = {'neuro': 460, 'pixel': 300};
-      // </rand-daten>
-      const schichten = {
-        hell: ['pixel', ['--akzent', '--rad-1', '--rad-6', '--spiel-3']],
-        dunkel: ['neuro', ['--akzent', '--rad-1', '--rad-2', '--spiel-3', '--rad-5', '--rad-6', '--rad-7']],
-      };
+      const { W, H, schichten, datei } = window.myRand;
       for (const [modus, [name, farben]] of Object.entries(schichten)) {
         const rand = document.querySelector('.rand-' + modus);
         rand.style.cssText = `--h: ${H[name]}px; --w: ${W}px`;
         rand.innerHTML = farben
-          .map((farbe, i) => `<i style="--c: var(${farbe}); --m: url(hintergrund/${name}-${i}.svg?v=${V})"></i>`).join('');
+          .map((farbe, i) => `<i style="--c: var(${farbe}); --m: url(${datei(name, i)})"></i>`).join('');
       }
     })();
   </script>

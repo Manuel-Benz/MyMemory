@@ -23,6 +23,8 @@ Dazugekommen:
 - **Spielende**: «Zur Übersicht» als Hauptknopf, «Nochmal spielen» darunter.
 - **Dunkler Rand schneller**: Höfe als Verlauf statt Weichzeichner, Kopien nur
   an den Kanten, Linien zusammengefasst (276 → 114 KB).
+- **Rand lädt sofort**: Masken per Preload im `<head>`, nicht erst nach Babel
+  (30 ms statt ~1–2,5 s).
 - **Umbruch**: erst ganze Wörter (Schrift kleiner), dann Silbentrennung, erst
   zuletzt mitten im Wort. Wörter ab 14 Buchstaben dürfen gleich getrennt
   werden, sonst zwängt ein einziges Kompositum das ganze Feld klein.
