@@ -25,6 +25,12 @@ Dazugekommen:
   an den Kanten, Linien zusammengefasst (276 → 114 KB).
 - **Rand lädt sofort**: Masken per Preload im `<head>`, nicht erst nach Babel
   (30 ms statt ~1–2,5 s).
+- **Schneller Start und ruhigere Grafik** (20.10.2026): übersetzter Code im Browser
+  gemerkt (Cache Storage), Babel nur bei neuem Code (Start bei 4× gedrosselter CPU
+  3–6 s → 0.3–0.5 s, Erstbesuch ~1 s); Bibliotheken `defer` und mit fester Version;
+  Rand als ein einmal gemaltes Hintergrundbild statt 4–7 SVG-Masken (fehlende Schicht
+  fehlt allein, Druck/hoher Kontrast ohne Rand); Karten animieren nur noch `transform`; Spielklassen
+  stehen vorab im DOM, damit Tailwind beim Aufdecken nicht neu baut.
 - **Umbruch**: erst ganze Wörter (Schrift kleiner), dann Silbentrennung, erst
   zuletzt mitten im Wort. Wörter ab 14 Buchstaben dürfen gleich getrennt
   werden, sonst zwängt ein einziges Kompositum das ganze Feld klein.
@@ -121,6 +127,10 @@ Dazugekommen:
   «Rand oben» umgesetzt): 2 Spieltisch aus Filz mit gemustertem Kartenrücken,
   3 Wendeanimation in 3D + Paar fliegt zum Spieler, 4 gefundene Paare als gefächerter
   Stapel pro Spieler, 5 Elefant als Maskottchen (zeigt, wer am Zug ist, reagiert auf Paare).
+
+- **MySuite DESIGN.md** schreibt für den Rand noch «jede Farbschicht eine SVG-Maske»
+  vor; MyMemory malt sie jetzt als Bild (Begründung in CLAUDE.md). Regel in MySuite
+  anpassen oder für alle Rand-Apps übernehmen (MyVoci hat noch Masken).
 
 - **Zissou + eigener Ton** (MySuite): `[data-schema="zissou"]` setzt `--akzent-ink`
   immer dunkel, auch wenn ein dunkler Ton (Tiefsee, Rost …) der Akzent ist.

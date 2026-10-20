@@ -3,7 +3,7 @@
 und Blut in MyKahoot): hintergrund/neuro-N.svg (Dunkel: Neuronen-Netz) und
 hintergrund/pixel-N.svg (Hell: 8-Bit-Blöcke, die nach unten zerbröseln).
 
-Jede Datei ist eine Farbschicht und dient als CSS-Maske (.rand in index.html):
+Jede Datei ist eine Farbschicht, eine Schablone, die index.html auf ein Canvas malt (.rand):
 eingefärbt wird mit Tokens des Schemas (--akzent, --rad-N), damit der Rand jedes
 Farbschema mitmacht. Darum enthält eine Datei nur Alpha, keine Farbe.
 Kachelbreite 1200 px, nahtlos in x (Kanten werden um ±1200 gespiegelt gezeichnet).
@@ -30,7 +30,7 @@ def save(name, h, body, defs=''):
 
 def merged(items):
     """Linien gleicher Strichstärke und Deckkraft als EIN Pfad: weniger Elemente,
-    die der Browser für die Maske einzeln rastern muss."""
+    die der Browser beim Malen einzeln rastern muss."""
     groups = {}
     for key, d in items: groups.setdefault(key, []).append(d)
     return [f'<path d="{"".join(ds)}" stroke="#000" stroke-width="{sw}" fill="none" opacity="{a}"/>'

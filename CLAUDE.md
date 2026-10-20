@@ -8,7 +8,17 @@ Stand und Backlog: `PLAN.md`.
 
 Eine einzige `index.html`: React 18 + Babel standalone, Tailwind per CDN
 (Konfiguration inline im `<head>`), KaTeX, qrcode-generator; JSZip wird erst beim
-Export nachgeladen. **Kein Build-Schritt, kein Backend.** Daten im Browser
+Export nachgeladen. CDN-Adressen immer mit fester Version (sonst Weiterleitung pro
+Besuch); ausser Tailwind alles `defer`. Die App steht als `<script type="text/x-jsx"
+id="app">`; der **Lader** am Ende des `<body>` führt den übersetzten Code aus dem
+Cache Storage (`mymemory-code`, Schlüssel = Fingerabdruck von Quelltext, Babel-URL und
+Optionen) aus und holt Babel nur bei geändertem Code (Preset nur `react`, `retainLines`,
+ausgeführt mit `"use strict"`). Nicht in `localStorage`: dessen Quote teilen sich alle
+Apps auf manuel-benz.github.io. Ist der Cache leer, lädt das `<head>`-Skript Babel per
+Preload vor (`myLader`). Klassen, die erst beim Aufdecken auftauchen, stehen auf einem
+versteckten `<div>` im `<body>`: das Tailwind-CDN baut sein CSS neu, sobald es einen
+Klassennamen zum ersten Mal im DOM sieht (`safelist` hilft dagegen nicht).
+**Kein Build-Schritt, kein Backend.** Daten im Browser
 (`localStorage`) bzw. komprimiert im URL-Fragment (`#m=…`). Optional (Chrome/Edge am
 Computer) liegen die Memories als `.txt` in einem verknüpften Ordner — Logik aus
 MyVoci (`readDir`/`fromDisk`/`mirrorDir`, Handle in IndexedDB `mymemory`→`kv`→`dir`,
@@ -77,14 +87,21 @@ Deploy = `git push` auf `main` (GitHub Pages).
   ist flex-wrap, damit die angebrochene letzte Reihe mittig steht. Die Schriftmessung
   (`useSharedFontSize`) folgt der Kachelgrösse per ResizeObserver.
 - **Rand oben** (wie Dschungel/Blut in MyKahoot): Hell = Pixel, Dunkel = Neuronen-Netz.
-  `hintergrund/*.svg` aus `tools/make-hintergrund.py`, je Farbschicht eine Maske, gefüllt
-  mit Schema-Tokens (`--akzent`, `--rad-N`, `--spiel-3`) — macht jedes Schema mit. Das
-  Skript schreibt Version `V` und Kachelmasse selbst in `index.html` (Marken «rand-daten»);
-  Daten und Farbzuordnung stehen im Skript im `<head>`, das die Masken des aktuellen
-  Modus per Preload vorlädt (mit `crossOrigin`, sonst lädt die Maske doppelt) — die
-  CDN-Skripte blockieren den Parser, ohne Preload kam der Rand erst nach Babel (~2,5 s).
-  Das Skript unter `<body>` füllt nur noch die Divs (`myRand`). Keine SVG-Filter in den
-  Masken (Hof = radialer Verlauf): jeder Filter wird pro Element gerastert und bremst. Frei stehender Text auf dem Rand (auch Titel, Lade-/Fehlertext): `.frei`;
+  `hintergrund/*.svg` aus `tools/make-hintergrund.py`, je Farbschicht eine Schablone (nur
+  Alpha), eingefärbt mit Schema-Tokens (`--akzent`, `--rad-N`, `--spiel-3`) — macht jedes
+  Schema mit. Das Skript schreibt Version `V` und Kachelmasse selbst in `index.html`
+  (Marken «rand-daten»); Daten, Farbzuordnung, `modus()` und der einzige Ladeweg
+  `bild()` stehen im Skript im `<head>` (`myRand`), das die Schablonen des aktuellen
+  Modus gleich zu laden beginnt. Das Skript unter `<body>` malt sie eingefärbt **auf
+  eine Canvas-Kachel**, die als Blob-URL Hintergrundbild wird (`repeat-x`, Breite W) —
+  CSS verteilt sie, auch bei Scrollbalken. Neu gemalt wird nur, wenn sich Satz, Farben
+  oder Pixeldichte ändern (MutationObserver am `<html>`, `matchMedia` für Hell/Dunkel und
+  `resolution`). Fehlt eine
+  Schablone oder Farbe, fehlt nur ihre Schicht. Die `.rand`-Regeln stehen in einem
+  eigenen `<style>` ausserhalb von Tailwind; bei Druck und hohem Kontrast ist der Rand
+  aus. Keine CSS-Masken mehr: die verrechneten bei jedem Neuzeichnen alle SVGs. Keine
+  SVG-Filter in den Schablonen (Hof = radialer Verlauf): jeder Filter wird pro Element
+  gerastert und bremst. Frei stehender Text auf dem Rand (auch Titel, Lade-/Fehlertext): `.frei`;
   Knöpfe darauf: `.auf-rand` (deckend, Hover als Schleier).
 - **Beispiele ausblendbar** (`mymemory_beispiele`, `useExamplesShown`): Auge-Knopf an der
   Liste, zurück über die Einstellungen.

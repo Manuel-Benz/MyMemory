@@ -19,20 +19,19 @@
       // Ob die Schema-ID noch existiert, prüft die App (SCHEMES) und setzt sonst DEFAULT_LOOK.
       const look = saved && typeof saved.schema === 'string'
         ? saved : { schema: 'budapest', ton: 3 }; // = DEFAULT_LOOK
-      const modus = read('mymemory_modus');
+      const gemerkt = read('mymemory_modus');
       const html = document.documentElement;
       html.dataset.schema = look.schema;
       const ton = look.ton;
       if (ton) html.dataset.ton = ton;
-      if (modus === 'hell' || modus === 'dunkel') html.dataset.modus = modus;
+      if (gemerkt === 'hell' || gemerkt === 'dunkel') html.dataset.modus = gemerkt;
 
       // Rand oben (s. .rand): Datei i von tools/make-hintergrund.py trägt die
       // i-te Farbe. Version (gegen alte Schichten im Browser-Cache) und
-      // Kachelmasse schreibt das Skript selbst hierher. Die Daten stehen schon
-      // hier, damit die Masken des aktuellen Modus per Preload laden: die
-      // CDN-Skripte unten blockieren den Parser, der <body> mit dem Rand käme
-      // sonst erst nach Babel dran. `crossOrigin` wie bei Masken, sonst lädt
-      // jede Datei zweimal.
+      // Kachelmasse schreibt das Skript selbst hierher. Die Schablonen des
+      // aktuellen Modus beginnen schon hier zu laden: Tailwind unten blockiert
+      // den Parser, der <body> mit dem Rand kommt erst danach dran. Das Skript
+      // dort holt sie über dieselbe `bild()` — so gibt es nur einen Ladeweg.
       // <rand-daten>
       const V = '5cebb188', W = 1200, H = {'neuro': 460, 'pixel': 300};
       // </rand-daten>
@@ -41,16 +40,57 @@
         dunkel: ['neuro', ['--akzent', '--rad-1', '--rad-2', '--spiel-3', '--rad-5', '--rad-6', '--rad-7']],
       };
       const datei = (name, i) => `hintergrund/${name}-${i}.svg?v=${V}`;
-      window.myRand = { W, H, schichten, datei };
-      const [name, farben] = schichten[html.dataset.modus || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dunkel' : 'hell')];
-      farben.forEach((_, i) => {
-        const link = document.createElement('link');
-        link.rel = 'preload'; link.as = 'image'; link.crossOrigin = 'anonymous'; link.href = datei(name, i);
-        document.head.appendChild(link);
-      });
+      const dunkel = matchMedia('(prefers-color-scheme: dark)');
+      const modus = () => html.dataset.modus || (dunkel.matches ? 'dunkel' : 'hell');
+      const bilder = new Map(); // jede Schablone nur einmal laden
+      const bild = (src) => {
+        if (!bilder.has(src)) bilder.set(src, new Promise((ok, fail) => {
+          const img = new Image();
+          img.onload = () => ok(img);
+          // Vergessen statt merken: nach einem Funkloch lädt der nächste Versuch neu
+          img.onerror = () => { bilder.delete(src); fail(); };
+          img.src = src;
+        }));
+        return bilder.get(src);
+      };
+      const [name, farben] = schichten[modus()];
+      farben.forEach((_, i) => bild(datei(name, i)).catch(() => {}));
+      window.myRand = { W, H, schichten, datei, dunkel, modus, bild };
+
+      // Babel (s. Lader am Ende des <body>) beim allerersten Besuch gleich
+      // mitladen: der Lader läuft erst nach Tailwind und 130 KB Quelltext.
+      // Steht schon übersetzter Code im Cache, braucht es Babel meist gar nicht.
+      const BABEL = 'https://unpkg.com/@babel/standalone@7.26.4/babel.min.js';
+      const CACHE = 'mymemory-code';
+      window.myLader = { BABEL, CACHE };
+      if (window.caches) {
+        caches.open(CACHE).then((c) => c.keys()).then((keys) => {
+          if (keys.length) return;
+          const link = document.createElement('link');
+          link.rel = 'preload'; link.as = 'script'; link.href = BABEL;
+          document.head.appendChild(link);
+        }).catch(() => {});
+      }
     })();
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Rand oben, der nach unten ausdünnt (wie Dschungel/Blut in MyKahoot): Hell =
+       8-Bit-Pixel, Dunkel = Neuronen-Netz. Das Bild malt das Skript am Anfang des
+       <body> als Hintergrundbild (s. dort). Hinter allem (z-index −1), fest am
+       Fenster. Bewusst ausserhalb von Tailwind: sonst hinge der Rand davon ab,
+       wann (und ob) das CSS vom CDN kommt. */
+    .rand { position: fixed; inset: 0 0 auto 0; z-index: -1; pointer-events: none; overflow: hidden; }
+    .rand > i { position: absolute; inset: 0; background-repeat: repeat-x; } /* Grösse setzt das Skript */
+    .rand[data-satz="dunkel"] {
+      background: radial-gradient(ellipse 60% 70% at 50% 0%, color-mix(in srgb, var(--akzent) 16%, transparent), transparent 70%); }
+    /* Hoher Kontrast und Druck: weg damit — ein Hintergrundbild lässt der Browser
+       bei hohem Kontrast stehen, hinter dem Titel stört es dort nur. */
+    @media print, (forced-colors: active) { .rand { display: none; } }
+  </style>
+  <!-- Feste Versionen: «react@18» oder die nackte Tailwind-Adresse leiten erst
+       weiter und die Weiterleitung hält im Cache nur Minuten — jeder Besuch
+       kostete pro Datei eine Runde mehr. -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script>
     // Tailwind kennt nur noch die Farben des Designsystems: eine vergessene
     // Klasse wie `text-red-600` erzeugt gar keinen Stil statt einer festen Farbe.
@@ -81,11 +121,13 @@
     };
   </script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <!-- `defer`: laden parallel, ohne den Parser anzuhalten — der Rand steht so,
+       bevor die Bibliotheken da sind. Die App startet erst danach (Lader unten).
+       Babel steht nicht hier: das holt der Lader nur, wenn der Code neu ist. -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
   <script defer src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+  <script defer crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script defer crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
   <style type="text/tailwindcss">
     /* Über Tailwind verarbeitet, sonst läge dessen Preflight (button { background:
        transparent }) hinter diesen Regeln und gewönne. Komponenten in @layer
@@ -154,21 +196,6 @@
       mask: url("logo-elefant.svg") center / contain no-repeat;
     }
 
-    /* Rand oben, der nach unten ausdünnt (wie Dschungel/Blut in MyKahoot): Hell =
-       8-Bit-Pixel, Dunkel = Neuronen-Netz. Jede Farbschicht ist eine Maske aus
-       hintergrund/ (tools/make-hintergrund.py), gefüllt mit einem Token des Schemas —
-       so macht der Rand jedes Farbschema mit. Hinter allem (z-index −1), fest am Fenster. */
-    .rand { position: fixed; inset: 0 0 auto 0; height: var(--h); z-index: -1; pointer-events: none; }
-    .rand > i { position: absolute; inset: 0; background: var(--c);
-      -webkit-mask: var(--m) left top / var(--w) auto repeat-x; mask: var(--m) left top / var(--w) auto repeat-x; }
-    .rand-dunkel { display: none;
-      background: radial-gradient(ellipse 60% 70% at 50% 0%, color-mix(in srgb, var(--akzent) 16%, transparent), transparent 70%); }
-    :root[data-modus="dunkel"] .rand-dunkel { display: block; }
-    :root[data-modus="dunkel"] .rand-hell { display: none; }
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-modus="hell"]) .rand-dunkel { display: block; }
-      :root:not([data-modus="hell"]) .rand-hell { display: none; }
-    }
     /* Was frei auf dem Rand steht (Titel, Untertitel), bekommt einen Hof in der Grundfarbe */
     .frei { text-shadow: 0 0 12px var(--grund), 0 0 5px var(--grund), 0 0 2px var(--grund); }
     .knopf:disabled { opacity: .45; cursor: not-allowed; }
@@ -248,24 +275,85 @@
   </style>
 </head>
 <body>
-  <!-- Rand oben (s. .rand): Farbschichten als Masken, Farben aus dem Schema -->
-  <div class="rand rand-hell" aria-hidden="true"></div>
-  <div class="rand rand-dunkel" aria-hidden="true"></div>
+  <!-- Rand oben (s. .rand): Farbschichten aus hintergrund/, Farben aus dem Schema -->
+  <div class="rand" aria-hidden="true"><i></i></div>
+  <!-- Klassen, die erst beim Aufdecken auftauchen: Tailwind (CDN) baut sein ganzes
+       CSS neu, sobald es einen Klassennamen zum ersten Mal im DOM sieht — sonst
+       ausgerechnet im Moment, in dem die Karte umschlägt. Hier sieht es sie gleich. -->
+  <div hidden class="karte-frage karte-antwort offen-1 offen-2 von-1 von-2 dran-1 dran-2 max-w-full"></div>
   <script>
-    // Daten aus dem Skript im <head> (myRand). Läuft vor dem ersten Zeichnen, nichts blitzt auf.
+    // Jede Datei aus hintergrund/ ist eine Schablone (nur Alpha). Sie werden einmal
+    // in den Farben des Schemas übereinander auf eine Kachel gemalt; die Kachel wird
+    // ein gewöhnliches Hintergrundbild, das CSS über die Breite wiederholt. So
+    // rechnet der Browser beim Zeichnen nur ein fertiges Bild statt 4–7 SVGs mit
+    // Hunderten Elementen. Neu gemalt wird nur, wenn sich Satz, Farben oder
+    // Pixeldichte wirklich ändern. Daten und Ladeweg aus dem <head> (myRand).
     (() => {
-      const { W, H, schichten, datei } = window.myRand;
-      for (const [modus, [name, farben]] of Object.entries(schichten)) {
-        const rand = document.querySelector('.rand-' + modus);
-        rand.style.cssText = `--h: ${H[name]}px; --w: ${W}px`;
-        rand.innerHTML = farben
-          .map((farbe, i) => `<i style="--c: var(${farbe}); --m: url(${datei(name, i)})"></i>`).join('');
-      }
+      const { W, H, schichten, datei, dunkel, modus, bild } = window.myRand;
+      const html = document.documentElement;
+      const rand = document.querySelector('.rand'), flaeche = rand.firstElementChild;
+      let gemalt = '', auftrag = 0, url = '';
+      flaeche.style.backgroundSize = `${W}px auto`; // eine Kachel = W CSS-Pixel, egal bei welcher Dichte
+
+      const malen = async () => {
+        const satz = modus(), [name, farben] = schichten[satz];
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const css = getComputedStyle(html);
+        const farbe = farben.map((f) => css.getPropertyValue(f).trim());
+        const key = [satz, dpr, ...farbe].join(' ');
+        if (key === gemalt) return; // gleiches Schema nochmals gewählt, Zoom über 2× …
+        const nr = ++auftrag;
+        // Anderer Satz: den alten sofort weg, nicht stehen lassen, bis die neuen
+        // Schablonen geladen sind
+        if (rand.dataset.satz !== satz) {
+          rand.dataset.satz = satz;
+          rand.style.height = `${H[name]}px`;
+          flaeche.style.backgroundImage = '';
+        }
+        const imgs = await Promise.allSettled(farben.map((_, i) => bild(datei(name, i))));
+        if (nr !== auftrag) return; // inzwischen schon wieder umgeschaltet
+        const kachel = document.createElement('canvas'), schicht = document.createElement('canvas');
+        kachel.width = schicht.width = Math.round(W * dpr);
+        kachel.height = schicht.height = Math.round(H[name] * dpr);
+        const ctx = kachel.getContext('2d'), sctx = schicht.getContext('2d');
+        imgs.forEach((r, i) => {
+          // Fehlt eine Schablone oder ihre Farbe, fehlt nur diese Schicht (nicht schwarz)
+          if (r.status !== 'fulfilled' || !farbe[i]) return;
+          sctx.globalCompositeOperation = 'source-over';
+          sctx.clearRect(0, 0, schicht.width, schicht.height);
+          sctx.drawImage(r.value, 0, 0, schicht.width, schicht.height);
+          sctx.globalCompositeOperation = 'source-in'; // nur die deckenden Pixel färben
+          sctx.fillStyle = farbe[i];
+          sctx.fillRect(0, 0, schicht.width, schicht.height);
+          ctx.drawImage(schicht, 0, 0);
+        });
+        // Nur ein vollständiges Bild gilt als gemalt: sonst holt der nächste Anlass nach
+        if (imgs.every((r) => r.status === 'fulfilled') && farbe.every(Boolean)) gemalt = key;
+        const blob = await new Promise((ok) => kachel.toBlob(ok));
+        // Canvas-Speicher gleich freigeben: Safari (iPad) hat dafür eine harte Grenze
+        kachel.width = schicht.width = 0;
+        if (nr !== auftrag || !blob) return;
+        if (url) URL.revokeObjectURL(url);
+        url = URL.createObjectURL(blob);
+        flaeche.style.backgroundImage = `url(${url})`;
+      };
+
+      malen();
+      // Schema/Ton/Modus setzen die Einstellungen am <html>; zwei Attribute auf
+      // einmal kommen hier als ein einziger Aufruf an.
+      new MutationObserver(() => malen()).observe(html, { attributes: true, attributeFilter: ['data-schema', 'data-ton', 'data-modus'] });
+      dunkel.addEventListener('change', () => malen());
+      // Pixeldichte: Fenster auf einen anderen Bildschirm ziehen oder zoomen löst
+      // nicht zuverlässig `resize` aus — die Media-Query meldet es immer.
+      const dichte = () => matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+        .addEventListener('change', () => { malen(); dichte(); }, { once: true });
+      dichte();
     })();
   </script>
   <div id="root"></div>
 
-  <script type="text/babel">
+  <!-- Die App als JSX: läuft nicht von selbst, sondern über den Lader am Ende -->
+  <script type="text/x-jsx" id="app">
     const { useState, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } = React;
 
     // ---------- Browser-Speicher ----------
@@ -2624,11 +2712,14 @@
                 const matched = matchedPairs.includes(card.pairId);
                 const flipped = flippedCards.includes(card.id) || matched;
 
+                // Nur `transform` animieren: sonst gleitet bei jeder neuen Spaltenzahl
+                // auch die Breite, Bild für Bild neu gesetzt und neu gemessen.
+                // Neue Klassen hier auch ins versteckte <div> am Anfang des <body>.
                 return (
                   <div
                     key={card.id}
                     onClick={() => handleCardClick(card)}
-                    className={`platz aspect-[3/2] cursor-pointer transition-all duration-300 transform ${
+                    className={`platz aspect-[3/2] cursor-pointer transition-transform duration-300 transform ${
                       !flipped ? 'hover:scale-105' : ''
                     }`}
                   >
@@ -2968,6 +3059,53 @@
     };
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+  <script>
+    // Lader: Babel im Browser ist der teuerste Teil des Starts (3 MB laden, dann
+    // übersetzen — auf einem Schul-Laptop mehrere Sekunden). Darum wird das
+    // Übersetzte unter einem Fingerabdruck des Quelltexts gemerkt und beim
+    // nächsten Besuch direkt ausgeführt; Babel kommt nur, wenn sich der Code
+    // geändert hat (oder der Browser nichts speichern darf). Übersetzt wird nur
+    // JSX — alles andere können die Browser selbst und so geht es dreimal so schnell.
+    // Gemerkt wird im Cache Storage, nicht in localStorage: dessen 5 MB teilen sich
+    // alle Apps auf manuel-benz.github.io mit ihren Daten und ein voller Speicher
+    // liesse das Speichern der Memories still scheitern.
+    (() => {
+      const { BABEL, CACHE } = window.myLader;
+      // `retainLines`: Zeile im Fehler = Zeile im #app-Block
+      const OPTIONS = { presets: ['react'], retainLines: true };
+      const app = document.getElementById('app'), src = app.textContent;
+      app.remove(); // 130 KB Quelltext, die nach dem Lesen niemand mehr braucht
+      // FNV-1a über Babel-Version, Einstellungen und Quelltext
+      const input = BABEL + JSON.stringify(OPTIONS) + src;
+      let h = 0x811c9dc5;
+      for (let i = 0; i < input.length; i++) { h ^= input.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+      const key = `${(h >>> 0).toString(36)}.${src.length}`; // Länge als zweite Sicherung
+      const store = window.caches ? caches.open(CACHE) : Promise.reject(new Error('kein Cache Storage'));
+      const babel = () => new Promise((ok, fail) => {
+        const el = document.createElement('script');
+        el.src = BABEL;
+        // Im Handler fangen: ein Fehler dort (Filter liefert eine Sperrseite statt
+        // Babel, Tippfehler im JSX) liesse das Versprechen sonst ewig offen
+        el.onload = () => { try { ok(Babel.transform(src, OPTIONS).code); } catch (e) { fail(e); } };
+        el.onerror = () => fail(new Error(`${BABEL} nicht geladen`));
+        document.head.appendChild(el);
+      });
+      const code = store.then((c) => c.match(key)).then((r) => r && r.text()).catch(() => null)
+        .then((js) => js || babel().then((neu) => {
+          // ein einziger Eintrag: alte Stände raus, neuer rein
+          caches.delete(CACHE).then(() => caches.open(CACHE)).then((c) => c.put(key, new Response(neu))).catch(() => {});
+          return neu;
+        }));
+      // React und KaTeX sind `defer`: sie laufen vor DOMContentLoaded
+      const ready = new Promise((ok) => document.addEventListener('DOMContentLoaded', ok));
+      Promise.all([code, ready]).then(([js]) => {
+        const el = document.createElement('script');
+        el.textContent = `"use strict";${js}\n//# sourceURL=mymemory-app.js`;
+        document.body.appendChild(el); // läuft hier sofort durch
+        el.remove(); // der Text bliebe sonst die ganze Sitzung im DOM
+      }, (e) => console.error('MyMemory konnte nicht starten', e));
+    })();
   </script>
 </body>
 </html>
