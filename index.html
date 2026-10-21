@@ -457,17 +457,33 @@
             <li>Kopiere den KI-Prompt (Button unten) in ein KI-Tool wie <b>Claude</b> oder <b>ChatGPT</b>.</li>
             <li>Fülle dort <b>den Block zuoberst</b> aus: Thema <i>oder</i> Material (PDF/Text anhängen), Klasse, Anzahl Paare, Sprache … Alles darunter unverändert lassen — das ist die Formatvorgabe.</li>
             <li>Du erhältst eine .txt-Datei <i>und</i> denselben Text zum Kopieren (Format {code('F:')} / {code('A:')} / {code('---')}).</li>
-            <li>Datei unten in die Ablage-Fläche ziehen — oder den Text ins Feld darunter einfügen.</li>
+            <li>Den Text unten einfügen oder die Datei auf die Fläche darunter ziehen. Die Vorschau zeigt, was erkannt wurde — «In die Sammlung» legt das Memory an.</li>
           </>
         ),
         copyPrompt: 'KI-Prompt kopieren',
         promptCopied: 'KI-Prompt kopiert!',
-        dropTitle: 'Datei hierher ziehen',
+        dropTitle: '… oder Datei hierher ziehen',
         dropHint: 'oder klicken zum Auswählen (.txt im F:/A:/---‑Format)',
-        orPaste: 'oder Text einfügen',
-        pastedTitlePh: 'Titel (z.B. Hauptstädte Europas)',
-        pastePh: 'F: Hauptstadt der Schweiz\nA: Bern\n---',
-        importText: 'Text importieren',
+        orByHand: 'oder von Hand',
+        byHand: 'Leeres Memory von Hand anlegen',
+        createIn: 'Speichern in',
+        pasteLabel: 'Antwort der KI',
+        pastePh: '# Hauptstädte Europas\nSprache: de\n\nF: Hauptstadt der Schweiz\nA: Bern\n---',
+        previewTitle: 'Titel',
+        previewTitleMissing: 'Titel fehlt — bitte eintragen',
+        previewFolder: (dir) => `Ordner: ${dir || t('rootFolder')}`,
+        previewCount: (n) => `${t('nPairs', n)} erkannt:`,
+        previewStray: (n) => `${n === 1 ? 'Eine Zeile' : `${n} Zeilen`} nicht verstanden:`,
+        previewSave: 'In die Sammlung',
+        previewDiscard: 'Verwerfen',
+        replace: 'Ersetzen',
+        confirmReplace: (title) => `«${title}» gibt es in diesem Ordner schon. Ersetzen?`,
+        backupTitle: 'Sicherung',
+        backupHint: 'Alle Memories und Ordner als eine Datei — zum Umziehen auf ein anderes Gerät oder für Safari/iPad, wo es keinen Ordner gibt. Einlesen ergänzt, was fehlt, und ersetzt nichts.',
+        backupExport: 'Sicherung herunterladen',
+        backupImport: 'Sicherung einlesen',
+        backupDone: (n) => `Sicherung eingelesen (${n} ${n === 1 ? 'Memory' : 'Memories'} neu oder ergänzt)`,
+        backupBad: 'Das ist keine MyMemory-Sicherung.',
         importHint: 'Importierte Memories werden in diesem Browser gespeichert. Bewahre die Originaldatei trotzdem auf — leert der Browser seinen Speicher, importierst du sie einfach wieder.',
         myMemories: 'Meine Memories',
         examples: 'Beispiele',
@@ -600,17 +616,33 @@
             <li>Copy the AI prompt (button below) into an AI tool such as <b>Claude</b> or <b>ChatGPT</b>.</li>
             <li>Fill in <b>the block at the top</b>: topic <i>or</i> material (attach a PDF/text), class, number of pairs, language … Leave everything below unchanged — that is the format spec.</li>
             <li>You get a .txt file <i>and</i> the same text to copy (format {code('F:')} / {code('A:')} / {code('---')}).</li>
-            <li>Drag the file onto the drop area below — or paste the text into the field underneath.</li>
+            <li>Paste the text below or drag the file onto the area underneath. The preview shows what was recognised — “Add to collection” creates the memory.</li>
           </>
         ),
         copyPrompt: 'Copy AI prompt',
         promptCopied: 'AI prompt copied!',
-        dropTitle: 'Drag a file here',
+        dropTitle: '… or drag a file here',
         dropHint: 'or click to choose one (.txt in F:/A:/--- format)',
-        orPaste: 'or paste text',
-        pastedTitlePh: 'Title (e.g. Capitals of Europe)',
-        pastePh: 'F: Capital of Switzerland\nA: Bern\n---',
-        importText: 'Import text',
+        orByHand: 'or by hand',
+        byHand: 'Create an empty memory by hand',
+        createIn: 'Save in',
+        pasteLabel: 'Answer from the AI',
+        pastePh: '# Capitals of Europe\nLanguage: en\n\nF: Capital of Switzerland\nA: Bern\n---',
+        previewTitle: 'Title',
+        previewTitleMissing: 'Title missing — please enter one',
+        previewFolder: (dir) => `Folder: ${dir || t('rootFolder')}`,
+        previewCount: (n) => `${t('nPairs', n)} found:`,
+        previewStray: (n) => `${n === 1 ? 'One line' : `${n} lines`} not understood:`,
+        previewSave: 'Add to collection',
+        previewDiscard: 'Discard',
+        replace: 'Replace',
+        confirmReplace: (title) => `“${title}” already exists in this folder. Replace it?`,
+        backupTitle: 'Backup',
+        backupHint: 'All memories and folders as one file — for moving to another device, or for Safari/iPad where there is no folder. Importing adds what is missing and replaces nothing.',
+        backupExport: 'Download backup',
+        backupImport: 'Import backup',
+        backupDone: (n) => `Backup imported (${n} ${n === 1 ? 'memory' : 'memories'} new or extended)`,
+        backupBad: 'This is not a MyMemory backup.',
         importHint: 'Imported memories are stored in this browser. Keep the original file anyway — if the browser clears its storage, you simply import it again.',
         myMemories: 'My memories',
         examples: 'Examples',
@@ -787,16 +819,15 @@
       "SO GIBST DU ES AUS — daran scheitert es sonst:",
       "- Gib beides aus, in dieser Reihenfolge:",
       "  1. eine Datei zum Herunterladen, Endung .txt (kein .docx, kein PDF). Der",
-      "     Dateiname beginnt mit «Memory_», danach folgt der Titel des Memorys —",
-      "     kurz und passend, Wörter mit «_» getrennt: Memory_Hauptstaedte_Europas.txt",
-      "     Erste Zeile der Datei: «Sprache: de» oder «Sprache: en» — je nach Sprache",
-      "     des Memorys oben (bei einer anderen Sprache die Zeile weglassen).",
+      "     Dateiname ist der Titel ohne Umlaute, Akzente und Sonderzeichen, mit",
+      "     Leerzeichen und normalem Bindestrich: Hauptstaedte Europas.txt",
       "  2. denselben Inhalt nochmals in EINEM Code-Block (```), zum Kopieren.",
       "- Kannst du keine Dateien erzeugen, reicht der Code-Block allein.",
       "- Kein Wort davor oder danach: keine Einleitung, keine Erklärung, keine Rückfrage.",
       "",
       "FORMAT (genau so):",
       "",
+      "# Hauptstädte Europas",
       "Sprache: de",
       "",
       "F: Hauptstadt der Schweiz",
@@ -806,7 +837,14 @@
       "A: $13$",
       "---",
       "",
+      "TITEL (die Zeile «# …»):",
+      "- Wie im Material (Kapitel, Thema des Arbeitsblatts), sonst das Thema kurz:",
+      "  «Hauptstädte Europas», «Brüche – Kürzen».",
+      "- Nicht in den Titel: Klasse, Datum, Sprache, «Memory», «Lernkarten».",
+      "",
       "REGELN:",
+      "- Erste Zeile «# Titel», zweite Zeile «Sprache: de» oder «Sprache: en» — je nach",
+      "  Sprache des Memorys oben (bei einer anderen Sprache die Zeile weglassen).",
       "- «F: » ist die Vorderseite, «A: » die Rückseite, «---» trennt die Paare.",
       "- Nach jedem Paar eine Zeile «---», auch nach dem letzten.",
       "- Jede Rückseite darf nur zu GENAU EINER Vorderseite passen — sonst ist im Spiel",
@@ -829,7 +867,7 @@
       "- Ist beides kurz genug für eine Karte?",
       "- Passt das Niveau durchgehend zur angegebenen Klasse?",
       "- Steht jede Zahl im Mathe-Modus, jeder Tausendertrenner als \\,?",
-      "- Stimmt das Format überall: «F: », «A: », «---»?",
+      "- Stimmt das Format überall: «# Titel», «F: », «A: », «---»?",
     ].join("\n");
 
     const KI_PROMPT_EN = [
@@ -849,17 +887,16 @@
       "",
       "HOW TO OUTPUT IT — this is where it usually goes wrong:",
       "- Give both, in this order:",
-      "  1. a file to download, extension .txt (no .docx, no PDF). The file name",
-      "     starts with «Memory_», followed by the title of the memory — short and",
-      "     fitting, words separated by «_»: Memory_Capitals_of_Europe.txt",
-      "     First line of the file: «Language: en» or «Language: de» — matching the",
-      "     language of the memory given above (omit the line for any other language).",
+      "  1. a file to download, extension .txt (no .docx, no PDF). The file name is",
+      "     the title without umlauts, accents and special characters, with spaces and",
+      "     a plain hyphen: Capitals of Europe.txt",
       "  2. the same content again in ONE code block (```), to copy.",
       "- If you cannot produce files, the code block alone is enough.",
       "- Not a word before or after: no introduction, no explanation, no follow-up question.",
       "",
       "FORMAT (exactly like this):",
       "",
+      "# Capitals of Europe",
       "Language: en",
       "",
       "F: Capital of Switzerland",
@@ -869,7 +906,14 @@
       "A: $13$",
       "---",
       "",
+      "TITLE (the line «# …»):",
+      "- As in the material (chapter, topic of the worksheet), otherwise the topic in",
+      "  short: «Capitals of Europe», «Fractions – Simplifying».",
+      "- Not in the title: class, date, language, «Memory», «Flashcards».",
+      "",
       "RULES:",
+      "- First line «# Title», second line «Language: en» or «Language: de» — matching",
+      "  the language of the memory given above (omit the line for any other language).",
       "- «F: » is the front, «A: » the back, «---» separates the pairs.",
       "- A line «---» after every pair, including the last one.",
       "- Every back must fit EXACTLY ONE front — otherwise the game cannot decide",
@@ -891,7 +935,7 @@
       "- Are both sides short enough for a card?",
       "- Does the level fit the given class throughout?",
       "- Is every number in math mode, every thousands separator a \\,?",
-      "- Is the format right everywhere: «F: », «A: », «---»?",
+      "- Is the format right everywhere: «# Title», «F: », «A: », «---»?",
     ].join("\n");
 
     const kiPrompt = () => (currentLang === 'en' ? KI_PROMPT_EN : KI_PROMPT_DE);
@@ -932,9 +976,9 @@
 
     const MEMORY_PREFIX = /^memory_+(?=.)/i;
     const parseFile = (text, filename) => {
-      // Der KI-Prompt verlangt Dateinamen wie «Memory_Thema.txt»: das Präfix
-      // hilft beim Wiederfinden im Download-Ordner, gehört aber nicht in den
-      // Titel. Nur mit Unterstrich — «Memory Vokabeln.txt» heisst wirklich so.
+      // Frühere KI-Prompts verlangten Dateinamen wie «Memory_Thema.txt»: das Präfix
+      // gehört nicht in den Titel. Nur mit Unterstrich — «Memory Vokabeln.txt»
+      // heisst wirklich so.
       const lang = langInFile(text);
       if (/^##\s/m.test(text)) {
         const { title, pairs } = parseMd(text);
@@ -1043,11 +1087,12 @@
     // ---------- Direktlinks: Memory komprimiert im URL-Fragment ----------
     // Die Daten stehen nach dem # — sie verlassen den Browser nicht einmal
     // Richtung Server. Format: #m=1.<deflate+base64url> bzw. #m=0.<base64url>.
-    const encodeMemory = (memory) => MyAblage.packLink([memory.title, memory.pairs.map((p) => [p.question, p.answer])]);
+    // [Titel, Paare, Sprache]: die Sprache hinten und nur, wenn gesetzt — alte Links bleiben gültig
+    const encodeMemory = (memory) => MyAblage.packLink([memory.title, memory.pairs.map((p) => [p.question, p.answer]), ...(memory.lang ? [memory.lang] : [])]);
 
     const decodeMemory = async (data) => {
-      const [title, rawPairs] = await MyAblage.unpackLink(data);
-      return { title, pairs: rawPairs.map(([question, answer]) => ({ question, answer })) };
+      const [title, rawPairs, lang] = await MyAblage.unpackLink(data);
+      return { title, pairs: rawPairs.map(([question, answer]) => ({ question, answer })), ...(lang === 'de' || lang === 'en' ? { lang } : {}) };
     };
 
     const demoById = (id) => DEMOS.find((d) => d.id === id);
@@ -1598,9 +1643,10 @@
     };
     // `link`/`count`: nur die Übersicht reicht den Ordner herein (wie MyVoci); im
     // Spiel gibt es dort nichts zu verwalten.
-    const Settings = ({ wide = false, link = null, count = 0 }) => {
+    const Settings = ({ wide = false, link = null, count = 0, onBackupSave = null, onBackupText = null }) => {
       const [open, setOpen] = useState(false);
       const box = useRef(null);
+      const backupInput = useRef(null);
       useEffect(() => {
         if (!open) return;
         const away = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
@@ -1689,13 +1735,137 @@
               </div>
             </div>
           )}
+          {onBackupSave && (
+            <div>
+              <div className={`${LABEL} mb-2`}>{t('backupTitle')}</div>
+              <p className="text-sm text-text-2 mb-3">{t('backupHint')}</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={onBackupSave} className={`${BTN_NEUTRAL} !px-3 !py-1.5 text-sm`}>{t('backupExport')}</button>
+                <button onClick={() => backupInput.current.click()} className={`${BTN_NEUTRAL} !px-3 !py-1.5 text-sm`}>{t('backupImport')}</button>
+                <input ref={backupInput} type="file" accept=".json,application/json" className="hidden"
+                  onChange={(e) => { for (const f of e.target.files) f.text().then(onBackupText); e.target.value = ''; }} />
+              </div>
+            </div>
+          )}
         </div>
       );
       return <div ref={box} className={`relative shrink-0 ${SETTINGS_DOCK[wide ? 'wide' : 'narrow']}`}>{button}{panel}</div>;
     };
 
+    // Ordnerwahl mit eingerückten Unterordnern — Editor und «Memory erstellen»
+    const FolderSelect = ({ value, onChange, folders, className = '' }) => (
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={`flex-1 min-w-0 ${INPUT} ${className}`}>
+        <option value="">{t('rootFolder')}</option>
+        {folders.map((f) => <option key={f} value={f}>{'\u00a0\u00a0'.repeat(f.split('/').length - 1) + dirName(f)}</option>)}
+      </select>
+    );
+
+    // Was die Vorschau als «nicht verstanden» meldet: alles ausser den Zeilen,
+    // die parseFA und der Kopf lesen. Das alte «## Vorderseite»-Format liest jede
+    // Zeile als Rückseite, dort gibt es nichts zu melden.
+    const knownLine = (l) => /^-{3,}$/.test(l) || /^([FQA]|Sprache|Language)\s*:/i.test(l);
+    const strayOf = (text) => (/^##\s/m.test(text) ? [] : MyAblage.strayLines(text, knownLine));
+
+    // Kasten «Memory erstellen» (wie in MyVoci und MyTafelfussball). Eine eigene
+    // Komponente mit eigenem Zustand für den eingefügten Text: lag der in der
+    // Übersicht, zeichnete jedes getippte Zeichen die ganze Liste neu.
+    // Eingefügter Text und eine einzelne Datei kommen erst in die Vorschau
+    // (ABLAGE.md, «Text einfügen und Vorschau»); mehrere Dateien gehen direkt
+    // in den gewählten Ordner `into`.
+    const CreateBox = ({ open, onToggle, into, onPick, folders, hint, onFiles, onSave, onNew, onCopyPrompt }) => {
+      const [pasted, setPasted] = useState('');
+      const [fileName, setFileName] = useState(''); // Datei im Feld: ihr Name ist der Ersatztitel
+      const [title, setTitle] = useState(null);      // null = folgt «# Titel» im Text
+      const fileInput = useRef(null);
+      const titleInput = useRef(null);
+      const parsed = useMemo(() => (pasted.trim() ? parseFile(pasted, fileName) : null), [pasted, fileName]);
+      const strays = useMemo(() => (parsed ? strayOf(pasted) : []), [pasted, parsed]);
+      const pairs = parsed ? parsed.pairs : [];
+      const shownTitle = title ?? (parsed ? parsed.title || '' : '');
+      const clear = () => { setPasted(''); setFileName(''); setTitle(null); };
+      const typed = (text) => { setPasted(text); if (!text.trim()) { setFileName(''); setTitle(null); } };
+      // Eine Datei kommt ins Feld (sichtbar und änderbar), mehrere direkt in die Sammlung
+      const takeFiles = (files) => {
+        if (files.length !== 1 || /\.json$/i.test(files[0].name)) { onFiles(files); return; }
+        const file = files[0];
+        file.text().then((text) => { setPasted(text); setFileName(file.name); setTitle(null); });
+      };
+      const save = () => {
+        const name = shownTitle.trim();
+        if (!name) { titleInput.current.focus(); return; }
+        const { lang } = parsed;
+        onSave({ title: name, pairs, ...(lang ? { lang } : {}) }, clear);
+      };
+      // Die Fläche braucht ein eigenes onDrop: sonst fiele die Datei zum
+      // Fenster-Listener durch — der kennt nur die Hauptebene.
+      const hereDrop = {
+        onDragOver: (e) => { e.preventDefault(); e.stopPropagation(); },
+        onDrop: (e) => { if (!e.dataTransfer.files.length) return; e.preventDefault(); e.stopPropagation(); takeFiles([...e.dataTransfer.files]); },
+      };
+      return (
+        <div id="create" className={`${CARD} mb-8 scroll-mt-4`}>
+          <button onClick={onToggle} className="w-full flex items-center justify-between gap-2 px-5 py-4 text-left">
+            <h2 className="text-lg font-bold">{t('createTitle')}</h2>
+            <span className={`text-text-3 transition-transform ${open ? 'rotate-90' : ''}`}><ChevronIcon /></span>
+          </button>
+          {open && (
+            <div className="px-5 pb-5">
+              {folders.length > 0 && (
+                <label className="flex items-center gap-3 mb-4">
+                  <span className={LABEL}>{t('createIn')}</span>
+                  <FolderSelect value={into} onChange={onPick} folders={folders} className="text-sm" />
+                </label>
+              )}
+              <ol className="list-decimal list-inside text-text-2 space-y-1 mb-4">{t('steps')}</ol>
+              <button onClick={onCopyPrompt} className={`w-full ${BTN_PRIMARY} mb-6`}>{t('copyPrompt')}</button>
+              <textarea value={pasted} onChange={(e) => typed(e.target.value)} rows={6} placeholder={t('pastePh')}
+                aria-label={t('pasteLabel')} className={`w-full text-sm font-mono ${INPUT}`} />
+              <div onClick={() => fileInput.current.click()} {...hereDrop}
+                className="mt-2 border-2 border-dashed border-linie rounded-lg p-4 text-center text-text-2 cursor-pointer hover:border-akzent hover:bg-akzent-weich transition-colors">
+                <span className="flex items-center justify-center gap-2 font-bold"><InboxIcon /> {t('dropTitle')}</span>
+                <span className="block text-sm text-text-3">{t('dropHint')}</span>
+              </div>
+              <input ref={fileInput} type="file" accept=".txt,.md" multiple className="hidden"
+                onChange={(e) => { takeFiles([...e.target.files]); e.target.value = ''; }} />
+              {pasted.trim() && !pairs.length && <p className="text-sm text-rot mt-2">{t('noPairsFound')}</p>}
+              {pairs.length > 0 && (
+                <div className="vorschau mt-4 rounded-lg border border-linie p-4">
+                  <label className={`block ${LABEL} mb-1`} htmlFor="previewTitle">{t('previewTitle')}</label>
+                  <input id="previewTitle" ref={titleInput} type="text" value={shownTitle} onChange={(e) => setTitle(e.target.value)}
+                    placeholder={t('previewTitleMissing')} className={`w-full mb-3 ${INPUT}`} />
+                  <p className="text-sm text-text-2 mb-1">{t('previewFolder', into)}</p>
+                  <p className={`${LABEL} mt-3 mb-1`}>{t('previewCount', pairs.length)}</p>
+                  <ol className="list-decimal pl-6 max-h-56 overflow-auto text-sm space-y-0.5 mb-3 break-words">
+                    {pairs.map((p, i) => (
+                      <li key={i}><MathRenderer content={p.question} /> <span className="text-text-2">→ <MathRenderer content={p.answer} /></span></li>
+                    ))}
+                  </ol>
+                  {strays.length > 0 && (
+                    <p className="text-sm text-orange mb-3">
+                      {t('previewStray', strays.length)} {strays.slice(0, 3).map((x) => `${x.n}: «${x.line}»`).join(' · ')}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={save} className={`flex-1 ${BTN_PRIMARY}`}>{t('previewSave')}</button>
+                    <button onClick={clear} className={BTN_NEUTRAL}>{t('previewDiscard')}</button>
+                  </div>
+                </div>
+              )}
+              <div className={`flex items-center gap-3 my-4 ${LABEL}`}>
+                <span className="flex-1 h-px bg-linie" /> {t('orByHand')} <span className="flex-1 h-px bg-linie" />
+              </div>
+              <button onClick={onNew} className={`w-full ${BTN_NEUTRAL} flex items-center justify-center gap-2`}>
+                <PenIcon /> {t('byHand')}
+              </button>
+              <p className="text-sm text-text-3 mt-3">{hint}</p>
+            </div>
+          )}
+        </div>
+      );
+    };
+
     // ---------- Auswahlseite ----------
-    const Selection = ({ own, folders, onOpen, onEdit, onNew, onImport, onDelete, folderApi, link }) => {
+    const Selection = ({ own, folders, onOpen, onEdit, onNew, onImport, onDelete, folderApi, link, backup }) => {
       const [toast, setToast] = useState(null);
       const [qr, setQr] = useState(null); // { title, url }
       const [createOpen, setCreateOpen] = useState(false);
@@ -1704,9 +1874,19 @@
       const [dropDir, setDropDir] = useState(null); // Ordner, über dem gerade etwas schwebt
       const dragged = useRef(null); // { kind: 'memory'|'dir', id, dir? }
       const [dialog, setDialog] = useState(null); // s. AskModal
-      const [pasted, setPasted] = useState('');
-      const [pastedTitle, setPastedTitle] = useState('');
-      const fileInput = useRef(null);
+      // Wohin «Memory erstellen» ablegt. Das «+» an einem Ordner öffnet den Kasten
+      // mit diesem Ordner vorgewählt (wie in MyVoci). Ein inzwischen umbenannter
+      // oder gelöschter Ordner fällt auf den Hauptordner zurück.
+      const [target, setTarget] = useState('');
+      const into = folders.includes(target) ? target : '';
+      const create = (dir) => {
+        setTarget(dir);
+        setCreateOpen(true);
+        document.getElementById('create').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      // Der Datei-Listener am Fenster entsteht nur einmal: er liest die Liste hier
+      const ownRef = useRef(own);
+      ownRef.current = own;
 
       const toastTimer = useRef(0);
       const showToast = (msg) => {
@@ -1746,37 +1926,57 @@
         showToast(t('downloadedAll', own.length));
       };
 
-      // Einziger Weg von Text zu Memory — Datei und Einfügefeld teilen ihn sich
-      const addImported = (text, name, dir, complain) => {
-        const { title, pairs, lang } = parseFile(text, name);
-        if (!pairs.length) { showToast(complain); return false; }
-        // Nur mitgeben, was wirklich bekannt ist: fehlende Felder sollen beim
-        // Ersetzen den alten Stand nicht mit «undefined» überschreiben.
-        onImport({ id: newId(), title, pairs, ...(dir === undefined ? {} : { dir }), ...(lang ? { lang } : {}) });
-        showToast(t('imported', title, pairs.length));
-        return true;
+      const importBackupText = (text) => {
+        const n = backup.restore(text);
+        showToast(n === null ? t('backupBad') : t('backupDone', n));
       };
 
-      // `dir` bleibt undefined, wenn niemand ein Ziel genannt hat (Datei aufs
-      // Fenster gezogen, über den Knopf gewählt); '' ist der Hauptordner und
-      // damit eine ebenso gezielte Ansage wie jeder andere Ordner.
+      // Ein Import in einen zugeklappten Ordner wäre sonst unsichtbar — die
+      // Meldung sagt «importiert», die Liste zeigt nichts.
+      const openTo = (dir) => setOpenDirs((cur) => {
+        const add = [];
+        for (let d = dir || ''; d; d = parentDir(d)) if (!cur.includes(d)) add.push(d);
+        if (!add.length) return cur;
+        const next = [...cur, ...add];
+        writeLocal(OPEN_KEY, next);
+        return next;
+      });
+
+      // Einziger Weg zu einem neuen Memory (Vorschau, Dateien). Ohne genannten Ordner
+      // (`dir` undefined: aufs Fenster gezogen) gilt ein einziger gleicher Titel
+      // irgendwo als neue Fassung davon, sonst der Hauptordner. Gleicher Platz:
+      // erst nach «ersetzen?» (ABLAGE.md, «Dasselbe Set»). `done` erst, wenn das
+      // Memory wirklich da ist — nach «Abbrechen» bleibt die Vorschau stehen.
+      const addMemory = (memory, chosen, done) => {
+        const titled = ownRef.current.filter((m) => m.title === memory.title);
+        const dir = chosen ?? (titled.length === 1 ? titled[0].dir || '' : '');
+        const put = () => {
+          onImport({ id: newId(), ...memory, dir });
+          openTo(dir);
+          showToast(t('imported', memory.title, memory.pairs.length));
+          if (done) done();
+        };
+        if (ownRef.current.some((m) => sameSlot(m, { dir, title: memory.title }))) {
+          setDialog({ kind: 'confirm', ok: t('replace'), text: t('confirmReplace', memory.title), onYes: put });
+        } else put();
+      };
+
       const importFiles = (fileList, dir) => {
         for (const file of fileList) {
-          file.text().then((text) =>
-            addImported(text, file.name, dir, t('noPairsInFile', file.name)));
+          if (/\.json$/i.test(file.name)) { file.text().then(importBackupText); continue; } // Sicherung aufs Fenster gezogen
+          file.text().then((text) => {
+            const { title, pairs, lang } = parseFile(text, file.name);
+            // Nur mitgeben, was wirklich bekannt ist: fehlende Felder sollen beim
+            // Ersetzen den alten Stand nicht mit «undefined» überschreiben.
+            if (!pairs.length) showToast(t('noPairsInFile', file.name));
+            else addMemory({ title, pairs, ...(lang ? { lang } : {}) }, dir);
+          });
         }
       };
 
-      const importPasted = () => {
-        const done = addImported(pasted, pastedTitle.trim() || 'Memory', undefined, t('noPairsFound'));
-        if (!done) return;
-        setPasted('');
-        setPastedTitle('');
-      };
-
       // Dateien dürfen aufs ganze Fenster gezogen werden (wie bei MyTafelfussball).
-      // Nur einmal registrieren: onImport aktualisiert per Funktions-Update,
-      // die Closure kann also nicht veralten.
+      // Nur einmal registrieren: die Liste kommt aus ownRef, onImport aktualisiert
+      // per Funktions-Update — die Closure kann also nicht veralten.
       useEffect(() => {
         const over = (e) => { if ([...e.dataTransfer.types].includes('Files')) e.preventDefault(); };
         const drop = (e) => {
@@ -1860,9 +2060,13 @@
 
       // Nach dem Umhängen/Umbenennen wandern die aufgeklappten Ordner mit;
       // `false` = am Ziel liegt schon ein Ordner, null = nichts geschehen
-      const followMove = (from, target, shown) => {
-        if (target === false) showToast(t('folderExists', shown));
-        else if (target) rememberOpen(openDirs.map((d) => (inside(d, from) ? target + d.slice(from.length) : d)));
+      // samt der Ordnerwahl im Kasten, sonst fiele sie still auf den Hauptordner
+      const followMove = (from, to, shown) => {
+        if (to === false) { showToast(t('folderExists', shown)); return; }
+        if (!to) return;
+        const move = (d) => (inside(d, from) ? to + d.slice(from.length) : d);
+        rememberOpen(openDirs.map(move));
+        setTarget(move);
       };
 
       const newFolder = (parent) => setDialog({
@@ -1952,7 +2156,7 @@
                 <span className="truncate">{dirName(dir)}</span>
               </span>
               <span className="liste-zahl">{t('nMemories', count)}</span>
-              <IconButton onClick={() => onNew(dir)} title={t('newMemoryHere')}><PlusIcon /></IconButton>
+              <IconButton onClick={() => create(dir)} title={t('newMemoryHere')}><PlusIcon /></IconButton>
               <IconButton onClick={() => newFolder(dir)} title={t('newSubfolder')}><FolderIcon /></IconButton>
               <IconButton onClick={() => renameFolder(dir)} title={t('renameFolder')}><PenIcon /></IconButton>
               <IconButton onClick={() => dropFolder(dir)} title={t('deleteFolder')} danger><TrashIcon /></IconButton>
@@ -1978,64 +2182,16 @@
                 <h1 className="font-bold frei">MyMemory</h1>
                 <span className="logo" role="img" aria-label="MyMemory-Elefant" />
               </div>
-              <Settings link={link} count={own.length} />
+              <Settings link={link} count={own.length} onBackupSave={backup.save} onBackupText={importBackupText} />
             </div>
             <p className="text-text-2 mb-6 frei">{t('subtitle')}</p>
 
-            <div className={`${CARD} mb-8`}>
-              <button
-                onClick={() => setCreateOpen((v) => !v)}
-                className="w-full flex items-center justify-between gap-2 px-5 py-4 text-left"
-              >
-                <h2 className="text-lg font-bold">{t('createTitle')}</h2>
-                <span className={`text-text-3 transition-transform ${createOpen ? 'rotate-90' : ''}`}><ChevronIcon /></span>
-              </button>
-              {createOpen && (
-                <div className="px-5 pb-5">
-                  <ol className="list-decimal list-inside text-text-2 space-y-1 mb-4">
-                    {t('steps')}
-                  </ol>
-                  <button
-                    onClick={() => copyText(kiPrompt(), t('promptCopied'))}
-                    className={`w-full ${BTN_PRIMARY} mb-6`}
-                  >
-                    {t('copyPrompt')}
-                  </button>
-                  <div
-                    onClick={() => fileInput.current.click()}
-                    className="border-2 border-dashed border-linie rounded-lg p-6 text-center text-text-2 cursor-pointer hover:border-akzent hover:bg-akzent-weich transition-colors"
-                  >
-                    <span className="flex items-center justify-center gap-2 font-bold"><InboxIcon /> {t('dropTitle')}</span>
-                    <span className="block text-sm text-text-3">{t('dropHint')}</span>
-                  </div>
-                  <input
-                    ref={fileInput} type="file" accept=".txt,.md" multiple className="hidden"
-                    onChange={(e) => { importFiles(e.target.files); e.target.value = ''; }}
-                  />
-                  <div className={`flex items-center gap-3 my-4 ${LABEL}`}>
-                    <span className="flex-1 h-px bg-linie" /> {t('orPaste')} <span className="flex-1 h-px bg-linie" />
-                  </div>
-                  <input
-                    type="text" value={pastedTitle} onChange={(e) => setPastedTitle(e.target.value)}
-                    placeholder={t('pastedTitlePh')}
-                    className={`w-full mb-2 ${INPUT}`}
-                  />
-                  <textarea
-                    value={pasted} onChange={(e) => setPasted(e.target.value)} rows={5}
-                    placeholder={t('pastePh')}
-                    className={`w-full text-sm font-mono ${INPUT}`}
-                  />
-                  <button
-                    onClick={importPasted}
-                    disabled={!pasted.trim()}
-                    className={`w-full mt-2 ${BTN_SECONDARY}`}
-                  >
-                    {t('importText')}
-                  </button>
-                  <p className="text-sm text-text-3 mt-3">{link.status === 'ok' ? t('importHintDir', link.name) : t('importHint')}</p>
-                </div>
-              )}
-            </div>
+            <CreateBox open={createOpen} onToggle={() => { setTarget(''); setCreateOpen((v) => !v); }}
+              into={into} onPick={setTarget} folders={folders} onNew={() => onNew(into)}
+              hint={link.status === 'ok' ? t('importHintDir', link.name) : t('importHint')}
+              onFiles={(files) => importFiles(files, into)}
+              onSave={(memory, done) => addMemory(memory, into, done)}
+              onCopyPrompt={() => copyText(kiPrompt(), t('promptCopied'))} />
 
             {(link.status === 'prompt' || link.status === 'error') && (
               <div className={`${CARD} p-4 mb-6 text-sm`}>
@@ -2054,7 +2210,7 @@
             <div className={`${CARD} p-3 sm:p-4 mb-6`}>
               <div className="flex items-center gap-1 mb-2 pl-2.5">
                 <h2 className={`${LABEL} flex-1`}>{t('myMemories')}</h2>
-                <IconButton onClick={() => onNew('')} title={t('newMemory')}><PlusIcon /></IconButton>
+                <IconButton onClick={() => create('')} title={t('newMemory')}><PlusIcon /></IconButton>
                 <IconButton onClick={() => newFolder('')} title={t('newFolder')}><FolderIcon /></IconButton>
                 <IconButton onClick={exportAll} title={t('exportAll')}><DownloadIcon /></IconButton>
               </div>
@@ -2210,15 +2366,7 @@
               </label>
               <span className={LABEL}>{t('folderLabel')}</span>
               <div className="flex gap-2 mt-1">
-                <select
-                  value={dir} onChange={(e) => setDir(e.target.value)}
-                  className={`flex-1 min-w-0 ${INPUT}`}
-                >
-                  <option value="">{t('rootFolder')}</option>
-                  {folders.map((f) => (
-                    <option key={f} value={f}>{'\u00a0\u00a0'.repeat(f.split('/').length - 1) + dirName(f)}</option>
-                  ))}
-                </select>
+                <FolderSelect value={dir} onChange={setDir} folders={folders} />
                 <IconButton onClick={newFolder} title={t('makeFolder')}><FolderIcon /></IconButton>
               </div>
               <label className="block mt-4">
@@ -2536,7 +2684,7 @@
     };
 
     // ---------- Spiel aus der Route laden ----------
-    const Game = ({ route, own, onBack }) => {
+    const Game = ({ route, own, onKeep, onBack }) => {
       const [memory, setMemory] = useState(null);
       const [error, setError] = useState(null);
 
@@ -2550,8 +2698,9 @@
           const m = own.find((m) => m.id === route.id);
           m ? setMemory(m) : setError(t('errNotStored'));
         } else {
+          // Ein Link wird ein eigenes Memory (onKeep), die Route wechselt dann auf `local=`
           decodeMemory(route.data)
-            .then((m) => (m.pairs.length ? setMemory(m) : setError(t('errLinkEmpty'))))
+            .then((m) => (m.pairs.length ? onKeep(m) : setError(t('errLinkEmpty'))))
             .catch(() => setError(t('errLinkBroken')));
         }
       }, [route.type, route.id, route.data]);
@@ -2704,22 +2853,48 @@
 
       const putMemory = (memory, dropBy) => updateStore((prev) => insertMemory(prev, memory, dropBy));
 
-      // Gleicher Titel = neue Version desselben Memorys → ersetzen statt doppeln.
-      // Überschrieben wird nur, was der Import wirklich mitbringt: eine Datei
-      // ohne «Sprache:»-Zeile lässt die eingestellte Sprache stehen, und wer sie
-      // nicht auf einen Ordner zieht, lässt das Memory liegen, wo es liegt.
-      // Auch die id bleibt — sonst zeigten Lesezeichen auf «#local=<id>» ins Leere.
+      // Gleicher Platz = neue Fassung desselben Memorys → ersetzen statt doppeln
+      // (gefragt hat schon die Übersicht). Überschrieben wird nur, was der Import
+      // wirklich mitbringt: eine Datei ohne «Sprache:»-Zeile lässt die eingestellte
+      // Sprache stehen. Auch die id bleibt — sonst zeigten Lesezeichen auf
+      // «#local=<id>» ins Leere.
       const importMemory = (memory) => updateStore((prev) => {
-        // Dasselbe Memory = gleicher Ort (Ordner + Titel) oder gleiche Datei. Ohne
-        // Zielordner zählt ein einziger Titeltreffer überall, sonst der Hauptordner:
-        // gleiche Titel in zwei Ordnern sind zwei Memories, keines darf das andere
-        // (und dessen Datei) mitnehmen.
-        const titled = prev.memories.filter((m) => m.title === memory.title);
-        const target = memory.dir === undefined && titled.length === 1 ? titled[0] : { dir: '', ...memory };
-        const old = prev.memories.find((m) => sameSlot(m, target));
-        return insertMemory(prev, old ? { ...old, ...memory, id: old.id } : { dir: '', ...memory },
-          (m) => !old || m.id !== old.id);
+        const old = prev.memories.find((m) => sameSlot(m, memory));
+        return insertMemory(prev, old ? { ...old, ...memory, id: old.id } : memory, (m) => !old || m.id !== old.id);
       });
+
+      // Ein geöffneter Link bleibt im Browser (wie in MyVoci): übernommen wie ein
+      // Import und dann als eigenes Memory geöffnet (`local=`, die Sprache des Links
+      // bleibt). Gleicher Ort = dasselbe Memory, ein korrigierter Link ersetzt es
+      // ohne Frage. Der Link trägt keinen Ordner, landet darum im Hauptordner — es
+      // sei denn, das Memory liegt unverändert schon irgendwo (die Lehrperson
+      // öffnet den eigenen Link): dann wird das geöffnet, ohne Zweitkopie.
+      const keepLink = (memory) => {
+        const list = storeRef.current.memories;
+        const here = list.find((m) => sameSlot(m, { ...memory, dir: '' }));
+        const twins = here ? [] : list.filter((m) => m.title === memory.title);
+        const same = twins.length === 1 && JSON.stringify(twins[0].pairs) === JSON.stringify(memory.pairs) ? twins[0] : null;
+        const id = here ? here.id : same ? same.id : newId();
+        if (!same) importMemory({ ...memory, id, dir: '' });
+        const rest = hashParts().filter((x) => x !== routePart());
+        history.replaceState(null, '', location.pathname + location.search + '#' + ['local=' + id, ...rest].join('&'));
+        setRoute(getRoute());
+      };
+
+      // ---- Sicherung: Memories + Ordner in einer Datei (ABLAGE.md, «Weitergeben») ----
+      // Einlesen ergänzt: gleicher Platz = dasselbe Memory, es bekommt nur die
+      // fehlenden Paare; nichts wird ersetzt. null = keine MyMemory-Sicherung.
+      const backup = {
+        save: () => download('MyMemory-Sicherung.json', ablage.backupFile(storeRef.current, 'mymemory')),
+        restore: (text) => {
+          let data;
+          try { data = JSON.parse(text); } catch { return null; }
+          const res = ablage.restoreBackup(storeRef.current, data, 'mymemory');
+          if (!res) return null;
+          commit(res.next);
+          return res.count;
+        },
+      };
 
       const saveMemory = (memory) => {
         const saved = ablage.prepareSave(store, memory); // neue id bzw. Datei zieht beim Umbenennen mit
@@ -2786,12 +2961,12 @@
       }
 
       return route
-        ? <Game key={JSON.stringify(route)} route={route} own={own} onBack={back} />
+        ? <Game key={JSON.stringify(route)} route={route} own={own} onKeep={keepLink} onBack={back} />
         : (
           <Selection
             own={own} folders={folders}
             onOpen={openMemory} onEdit={editMemory} onNew={newMemory}
-            onImport={importMemory} onDelete={deleteMemory} folderApi={folderApi} link={dirApi}
+            onImport={importMemory} onDelete={deleteMemory} folderApi={folderApi} link={dirApi} backup={backup}
           />
         );
     };

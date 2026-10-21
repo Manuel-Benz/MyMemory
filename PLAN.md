@@ -13,10 +13,12 @@ Dazugekommen:
   alte Dateien behalten ihren Namen bis zum Umbenennen, natürliche Sortierung,
   Ordner umbenennen mit unveränderter Vorgabe tut nichts. Headless-Test
   `tools/test-ordner.js` (OPFS als Ordner, inkl. Klick auf «Ordner umbenennen»).
-  Offen aus ABLAGE.md: KI-Prompt mit Abschnitt TITEL, Vorschau, Sicherung, Link als
-  eigenes Memory übernehmen.
+  Am selben Tag der Rest aus ABLAGE.md: ein Einfügefeld mit Vorschau statt Titel +
+  Text, «+» an jedem Ordner öffnet den Kasten, «ersetzen?» beim Import, KI-Prompt
+  ohne `Memory_` und mit Abschnitt TITEL, Sicherung, Link wird ein eigenes Memory
+  (trägt jetzt auch die Sprache). Headless-Test entsprechend erweitert.
 - **«Memory erstellen»** als ein ein-/ausklappbares Kästchen — Anleitung,
-  KI-Prompt, Ablage-Fläche und ein Textfeld zum direkten Einfügen.
+  KI-Prompt, Einfügefeld mit Vorschau, Ablage-Fläche, von Hand.
 - **Editor** (`#edit=<id>` / `#new=<ordner>`): Titel, Ordner und Paare
   bearbeiten, hinzufügen, umsortieren, löschen — mit LaTeX-Vorschau.
 - **Ordner** wie in MyKahoot: beliebig tief, anlegen/umbenennen/löschen (nur
@@ -63,10 +65,9 @@ Dazugekommen:
   alle wieder die unterste Stufe.
 - **KI-Prompt im MyKahoot-Stil**: Ausfüll-Block zuoberst (Thema/Material,
   Klasse, Anzahl Paare, Sprache), darunter die Vorgaben; die KI liefert
-  `.txt`-Datei *und* denselben Text zum Kopieren. Der Dateiname beginnt mit
-  `Memory_` (zum Wiederfinden im Download-Ordner); der Import streift genau
-  dieses Präfix ab, aber nur mit Unterstrich — «Memory Vokabeln.txt» heisst
-  wirklich so.
+  `.txt`-Datei *und* denselben Text zum Kopieren, Dateiname = Titel nach der
+  Namensregel (ABLAGE.md). Das frühere Präfix `Memory_` streift der Import weiter
+  ab, aber nur mit Unterstrich — «Memory Vokabeln.txt» heisst wirklich so.
 - **Export**: einzelnes Memory als `.txt` (mit `# Titel` zuoberst, damit der
   Titel den Weg zurück übersteht), alle zusammen als ZIP mit der Ordnerstruktur
   der App, leere Ordner inklusive. JSZip wird erst beim ersten Export vom CDN

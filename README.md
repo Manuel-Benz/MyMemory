@@ -43,15 +43,16 @@ Alles steckt im aufklappbaren Kästchen **„Memory erstellen"**:
    ChatGPT einfügen. Dort **den Block zuoberst ausfüllen** (Thema oder Material,
    Klasse, Anzahl Paare, **Sprache des Memorys**); Material wie ein PDF einfach
    anhängen.
-2. Die KI liefert eine `.txt`-Datei **und** denselben Text zum Kopieren. Datei
-   auf die Website **ziehen** (oder die Ablage-Fläche anklicken) — der Dateiname
-   wird zum Titel (ein vorangestelltes `Memory_`, wie es der Prompt verlangt,
-   fällt dabei weg). Oder den Text ins Feld **„oder Text einfügen"** kopieren und
-   einen Titel eintippen.
+2. Die KI liefert eine `.txt`-Datei **und** denselben Text zum Kopieren. Den
+   Text ins Feld einfügen oder die Datei auf die Fläche darunter ziehen. Die
+   **Vorschau** zeigt Titel (aus `# Titel`), Ordner, die erkannten Paare und
+   Zeilen, die nicht verstanden wurden; **„In die Sammlung"** legt das Memory an.
+   Gibt es den Titel im Ordner schon, fragt sie „Ersetzen?".
 3. Das Memory erscheint unter „Meine Memories" – gespeichert im Browser
-   (`localStorage`), nirgendwo sonst.
+   (`localStorage`) bzw. im verbundenen Ordner.
 
-Von Hand geht es auch: das **+** neben „Meine Memories" öffnet den Editor.
+Das **+** neben „Meine Memories" und an jedem Ordner öffnet denselben Kasten mit
+diesem Ordner vorgewählt; dort gibt es auch den Weg von Hand (Editor).
 
 Format (identisch mit MyTafelfussball – dieselbe Datei funktioniert in beiden Apps):
 
@@ -114,7 +115,7 @@ bleiben im Browser dieses einen Spiels: „Nochmal spielen" behält sie, der Weg
 über „Übersicht" setzt sie zurück. Geteilt werden sie nie — sie stecken weder im
 Memory noch im Link.
 
-## Exportieren
+## Exportieren und sichern
 
 - Der **Pfeil nach unten** neben einem Memory lädt es als `.txt` herunter —
   genau das Format, das der Import und MyTafelfussball verstehen. Der Titel
@@ -122,6 +123,9 @@ Memory noch im Link.
   übersteht (MyTafelfussball überliest die Zeile).
 - Derselbe Pfeil neben „Meine Memories" packt **alle** eigenen Memories in ein ZIP; die
   Ordner der App werden zu Ordnern im ZIP, leere Ordner kommen mit.
+- **Sicherung** (Einstellungen): alle Memories und Ordner als eine `.json` — zum
+  Umziehen auf ein anderes Gerät, v. a. für Safari/iPad ohne Ordner. Einlesen
+  ergänzt, was fehlt, und ersetzt nichts.
 
 ## Teilen mit der Klasse
 
@@ -129,7 +133,8 @@ Neben jedem Memory:
 
 - **Direktlink kopieren** (Kettensymbol) – das komplette Memory steckt komprimiert im
   Link selbst (im `#`-Fragment, verlässt den Browser nicht Richtung Server).
-  SuS klicken und spielen sofort, ohne Import.
+  SuS klicken und spielen sofort; das Memory bleibt danach in ihrem Browser unter
+  „Meine Memories" (ein korrigierter Link ersetzt es).
 - **QR-Code anzeigen** (QR-Symbol) – derselbe Link als QR-Code, z.B. für den Beamer.
 
 Die Beispiele (Wurzeln, Hauptstädte Europas) sind fest in die App eingebaut.

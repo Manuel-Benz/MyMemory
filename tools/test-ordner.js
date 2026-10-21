@@ -117,12 +117,64 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   st = await store();
   check(!st.memories.some((s) => s.title === 'Lektion 12'), 'im Ordner gelöschtes Memory verschwindet');
 
-  // Link: Memory-Format [Titel, Paare]. MyMemory spielt ihn direkt (speichert ihn nicht):
-  // geprüft wird, dass packLink/unpackLink zum Format passen
-  const data = await A.packLink(['Im Restaurant', [['die Rechnung', "l'addition"]]]);
+  // Link: [Titel, Paare, Sprache] wird ein eigenes Memory (wie in MyVoci) und landet im Ordner
+  const data = await A.packLink(['Im Restaurant', [['die Rechnung', "l'addition"]], 'de']);
   await page.goto(`${base}#m=${data}`);
-  check(await until(() => document.body.innerText.includes('Im Restaurant')).then(() => true, () => false),
-    'Link öffnet das Memory');
+  await storeHas('Im Restaurant');
+  st = await store();
+  const linked = st.memories.find((m) => m.title === 'Im Restaurant');
+  check(!!linked && linked.lang === 'de' && linked.dir === '', 'Link wird ein eigenes Memory, samt Sprache');
+  check(await until(() => location.hash.includes('local=') && document.body.innerText.includes('Im Restaurant')).then(() => true, () => false),
+    'danach läuft das eigene Memory (local=)');
+  check(await hasFiles('Im Restaurant.txt').then(() => true, () => false), 'Link-Memory liegt im Ordner');
+  await page.goto('about:blank');
+  await page.goto(`${base}#m=${data}`);
+  await until(() => location.hash.includes('local='));
+  check((await store()).memories.filter((m) => m.title === 'Im Restaurant').length === 1, 'derselbe Link noch einmal: keine Zweitkopie');
+  // alter Link ohne Sprache bleibt gültig
+  await page.goto('about:blank');
+  await page.goto(`${base}#m=${await A.packLink(['Alt', [['a', 'b']]])}`);
+  await storeHas('Alt');
+  check(!('lang' in (await store()).memories.find((m) => m.title === 'Alt')), 'alter Link ohne Sprache geht weiter');
+
+  // Erstellen: ＋ am Ordner, ein Feld, Vorschau mit Titel aus «# Titel», Formeln, unverstandene Zeile
+  await page.goto('about:blank');
+  await page.goto(base);
+  await page.locator('.liste-zeile', { hasText: 'Französisch' })
+    .locator('button[title="New memory in this folder"], button[title="Neues Memory in diesem Ordner"]').click();
+  const box = page.locator('#create textarea');
+  await box.fill('# Hauptstädte\nSprache: de\n\nF: Schweiz\nA: Bern\n---\nquatsch\nF: $\\sqrt{4}$\nA: $2$\n---\n');
+  const title = page.locator('#previewTitle');
+  const prev = page.locator('#create .vorschau');
+  check(await title.inputValue() === 'Hauptstädte', 'Vorschau übernimmt den Titel aus «# Titel»');
+  const prevText = await prev.innerText();
+  check(prevText.includes('Französisch') && prevText.includes('quatsch'), 'Vorschau nennt den Ordner vom ＋ und die unverstandene Zeile');
+  check((await prev.locator('ol li').count()) === 2 && (await prev.locator('.katex').count()) > 0, 'Vorschau zeigt beide Paare, Formeln gesetzt');
+  await prev.locator('.knopf-1').click();
+  await storeHas('Hauptstädte');
+  check((await store()).memories.find((m) => m.title === 'Hauptstädte').dir === 'Französisch'
+    && await hasFiles('Französisch/Hauptstaedte.txt').then(() => true, () => false), 'gespeichert im gewählten Ordner, Dateiname nach der Namensregel');
+  // gleicher Platz: erst nach «ersetzen?», die Sprache bleibt
+  await box.fill('# Hauptstädte\n\nF: Frankreich\nA: Paris\n---\n');
+  await prev.locator('.knopf-1').click();
+  const replaceBtn = page.locator('button', { hasText: /^(Ersetzen|Replace)$/ });
+  check(await replaceBtn.isVisible(), 'gleicher Platz fragt «ersetzen?»');
+  await replaceBtn.click();
+  await until(() => JSON.parse(localStorage.getItem('mymemory')).memories.some((m) => m.title === 'Hauptstädte' && m.pairs[0].question === 'Frankreich'));
+  const replaced = (await store()).memories.filter((m) => m.title === 'Hauptstädte');
+  check(replaced.length === 1 && replaced[0].lang === 'de', 'ersetzt statt verdoppelt, Sprache bleibt');
+
+  // Sicherung: herunterladen (ohne Ordner-Buchführung), ergänzt einlesen
+  await page.click('button[title="Settings"], button[title="Einstellungen"]');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('text=/^(Download backup|Sicherung herunterladen)$/')]);
+  const backup = JSON.parse(require('fs').readFileSync(await dl.path(), 'utf8'));
+  check(backup.app === 'mymemory' && backup.memories.length === (await store()).memories.length
+    && backup.memories.every((m) => !('disk' in m) && !('file' in m)), 'Sicherung enthält alle Memories, ohne disk/file');
+  backup.memories.push({ id: 'neu', title: 'Aus der Sicherung', dir: 'Neu/Tief', pairs: [{ question: 'x', answer: 'y' }] });
+  await page.locator('input[accept=".json,application/json"]').setInputFiles({ name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
+  await storeHas('Aus der Sicherung');
+  const after = (await store()).memories;
+  check(after.length === backup.memories.length && after.filter((m) => m.title === 'Hauptstädte').length === 1, 'Sicherung ergänzt, was fehlt, ohne zu verdoppeln');
 
   check(errors.length === 0, `keine Fehler in der Konsole${errors.length ? ': ' + errors.join(' | ') : ''}`);
   await browser.close();
