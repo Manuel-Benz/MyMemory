@@ -7,6 +7,14 @@ Fertig und live: clientseitige App (wie MyTafelfussball) mit Demos, Datei-Import
 
 Dazugekommen:
 
+- **Gemeinsame Ablage** (21.10.2026): Namen, Ordner-Abgleich, Ordner-Aktionen samt
+  Wächtern, ZIP, Download und Link-Kodierung kommen aus `design/js/my-ablage.js`
+  (MySuite, Regeln in `design/ABLAGE.md`). Neue Datei- und Ordnernamen ohne Umlaute,
+  alte Dateien behalten ihren Namen bis zum Umbenennen, natürliche Sortierung,
+  Ordner umbenennen mit unveränderter Vorgabe tut nichts. Headless-Test
+  `tools/test-ordner.js` (OPFS als Ordner, inkl. Klick auf «Ordner umbenennen»).
+  Offen aus ABLAGE.md: KI-Prompt mit Abschnitt TITEL, Vorschau, Sicherung, Link als
+  eigenes Memory übernehmen.
 - **«Memory erstellen»** als ein ein-/ausklappbares Kästchen — Anleitung,
   KI-Prompt, Ablage-Fläche und ein Textfeld zum direkten Einfügen.
 - **Editor** (`#edit=<id>` / `#new=<ordner>`): Titel, Ordner und Paare

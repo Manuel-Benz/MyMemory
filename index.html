@@ -124,6 +124,7 @@
   <!-- `defer`: laden parallel, ohne den Parser anzuhalten — der Rand steht so,
        bevor die Bibliotheken da sind. Die App startet erst danach (Lader unten).
        Babel steht nicht hier: das holt der Lader nur, wenn der Code neu ist. -->
+  <script defer src="design/js/my-ablage.js"></script>
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
   <script defer src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
   <script defer crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
@@ -549,6 +550,7 @@
         dupAnswer: (a) => `Achtung: «${a}» kommt mehrfach als Rückseite vor — im Spiel passt sie dann zu mehreren Karten.`,
         errTitle: 'Der Titel fehlt.',
         errTitleTaken: 'Ein Memory mit diesem Titel gibt es schon.',
+        folderExists: (name) => `Es gibt hier schon einen Ordner «${name}».`,
         errNoPair: 'Mindestens ein Paar eintragen.',
         errHalfPair: 'Jedes Paar braucht Vorder- und Rückseite.',
         editorHint: () => (
@@ -688,6 +690,7 @@
         dupAnswer: (a) => `Careful: “${a}” appears as a back side more than once — in the game it then matches several cards.`,
         errTitle: 'The title is missing.',
         errTitleTaken: 'A memory with this title already exists.',
+        folderExists: (name) => `There is already a folder “${name}” here.`,
         errNoPair: 'Enter at least one pair.',
         errHalfPair: 'Every pair needs a front and a back.',
         editorHint: () => (
@@ -927,33 +930,24 @@
       return { title, pairs };
     };
 
+    const MEMORY_PREFIX = /^memory_+(?=.)/i;
     const parseFile = (text, filename) => {
       // Der KI-Prompt verlangt Dateinamen wie «Memory_Thema.txt»: das Präfix
       // hilft beim Wiederfinden im Download-Ordner, gehört aber nicht in den
       // Titel. Nur mit Unterstrich — «Memory Vokabeln.txt» heisst wirklich so.
-      const fromName = filename.replace(/\.(txt|md)$/i, '').replace(/^memory_+(?=.)/i, '').replace(/_/g, ' ').trim();
       const lang = langInFile(text);
       if (/^##\s/m.test(text)) {
         const { title, pairs } = parseMd(text);
-        return { title: title || fromName, pairs, lang };
+        return { title: title || MyAblage.titleFromFile('', filename, MEMORY_PREFIX), pairs, lang };
       }
       // Steht ein «# Titel» in der Datei, gilt der: nur so überlebt ein Titel den
       // Weg Export → Import unverändert (der Dateiname verliert z.B. «_» und «:»).
-      const inFile = text.match(/^#\s+(.+)$/m);
-      return { title: (inFile && inFile[1].trim()) || fromName, pairs: parseFA(text), lang };
+      return { title: MyAblage.titleFromFile(text, filename, MEMORY_PREFIX), pairs: parseFA(text), lang };
     };
 
     // «Sprache: en» / «Language: de» in der Datei (der KI-Prompt verlangt die
     // Zeile, der Export schreibt sie): die Sprache der Oberfläche im Spiel.
-    // Grosszügig gelesen — die KI schreibt auch mal «Englisch» oder «German».
-    const langInFile = (text) => {
-      const m = text.match(/^(?:sprache|language)\s*:\s*([a-z]+)/im);
-      const word = m && m[1].toLowerCase();
-      if (!word) return undefined;
-      if (word.startsWith('de') || word.startsWith('ge')) return 'de';
-      if (word.startsWith('en')) return 'en';
-      return undefined;
-    };
+    const { langInFile } = MyAblage;
 
     // ---------- Dateien schreiben (Export) ----------
     // Gegenstück zu parseFA: exportiert wird genau die Datei, die der Import
@@ -965,70 +959,24 @@
       (memory.lang ? `${memory.lang === 'en' ? 'Language' : 'Sprache'}: ${memory.lang}\n` : '') + '\n' +
       memory.pairs.map((p) => `F: ${p.question}\nA: ${p.answer}\n---`).join('\n') + '\n';
 
-    // Dateiname aus dem Titel — was Dateisysteme stört, wird zum Bindestrich.
-    // Ordnerpfade Stück für Stück, sonst stünde ein «:» im ZIP-Pfad und Windows
-    // packt das Archiv nicht mehr aus.
-    const safeName = (title) => title.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Memory';
-    const safeDir = (dir) => dir.split('/').map(safeName).join('/');
-
-    // JSZip wird erst geholt, wenn jemand exportiert: wer nur einem Link folgt,
-    // lädt sonst 100 KB für einen Knopf, den er nie drückt.
-    let jsZipLoading = null;
-    const loadJsZip = () => {
-      if (window.JSZip) return Promise.resolve(window.JSZip);
-      if (!jsZipLoading) {
-        jsZipLoading = new Promise((resolve, reject) => {
-          const el = document.createElement('script');
-          el.src = 'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js';
-          el.onload = () => resolve(window.JSZip);
-          el.onerror = () => { jsZipLoading = null; reject(); };
-          document.head.appendChild(el);
-        });
-      }
-      return jsZipLoading;
-    };
-
-    // Alle Memories in einem ZIP: die Ordner der App werden zu Ordnern im ZIP,
-    // jedes Memory zu seiner .txt. Gleiche Dateinamen im selben Ordner bekommen
-    // eine Nummer, damit keiner den anderen überschreibt.
-    const zipBlob = async (memories, folders) => {
-      const JSZipLib = await loadJsZip();
-      const zip = new JSZipLib();
-      const used = new Set();
-      for (const folder of folders) zip.folder(safeDir(folder)); // auch die leeren Ordner
-      for (const memory of memories) {
-        const base = `${memory.dir ? safeDir(memory.dir) + '/' : ''}${safeName(memory.title)}`;
-        let name = `${base}.txt`;
-        for (let i = 2; used.has(name); i++) name = `${base} (${i}).txt`;
-        used.add(name);
-        zip.file(name, toFile(memory));
-      }
-      return zip.generateAsync({ type: 'blob' });
-    };
-
-    const download = (name, data) => {
-      const blob = data instanceof Blob ? data : new Blob([data], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    };
+    // Namen, Ordnerpfade, Ort, Ordner-Abgleich, ZIP und Link teilt MyMemory mit den
+    // anderen My-Apps: design/js/my-ablage.js, Regeln in design/ABLAGE.md (beides
+    // aus ~/MySuite, nie hier ändern). Begründungen stehen dort. Dateinamen ohne
+    // Umlaute und Sonderzeichen (plainName); alte Dateien behalten ihren Namen (`file`).
+    const { download } = MyAblage;
 
     // ---------- Eigene Memories im Browser (localStorage) ----------
     // Gespeichert wird { memories, folders }. Ältere Stände kannten nur
     // `memories` (ohne Ordner) — die landen im Hauptordner.
     const STORAGE_KEY = 'mymemory';
 
+    // resolveSlots: alte Stände mit zwei Memories in einer Datei (frühere Namensregel) trennen
     const loadStore = () => {
       const raw = readLocal(STORAGE_KEY, {}) || {};
-      return {
+      return ablage.resolveSlots({
         memories: (raw.memories || []).map((m) => ({ dir: '', ...m })),
         folders: raw.folders || [],
-      };
+      });
     };
     const saveStore = (store) => writeLocal(STORAGE_KEY, store);
 
@@ -1036,28 +984,9 @@
     // Ein Ordner ist nur ein Pfad-String ('Mathe/Klasse 8'); '' ist der
     // Hauptordner. Jedes Memory trägt seinen Ordner in `dir`; `folders` hält
     // zusätzlich die leeren Ordner fest, die sonst niemand kennen würde.
-    const dirName = (dir) => dir.split('/').pop();
-    const parentDir = (dir) => (dir.includes('/') ? dir.slice(0, dir.lastIndexOf('/')) : '');
-    const inside = (dir, ancestor) => dir === ancestor || dir.startsWith(ancestor + '/');
-    const byTitle = (a, b) => a.title.localeCompare(b.title, 'de');
-
-    // Alle sichtbaren Ordner: die gemerkten plus jeder Pfad, in dem ein Memory liegt
-    const allFolders = ({ memories, folders }) => {
-      const set = new Set(folders);
-      for (const m of memories) {
-        for (let d = m.dir || ''; d; d = parentDir(d)) set.add(d);
-      }
-      return [...set].sort((a, b) => a.localeCompare(b, 'de'));
-    };
-
-    // Ordner umhängen/umbenennen: Pfad samt allem, was darin liegt, umschreiben
-    const remapDir = (store, from, to) => {
-      const move = (d) => (inside(d, from) ? to + d.slice(from.length) : d);
-      return {
-        memories: store.memories.map((m) => ({ ...m, dir: move(m.dir || '') })),
-        folders: [...new Set(store.folders.map(move))],
-      };
-    };
+    // byTitle aus dem Modul (natürlich sortiert: «Lektion 2» vor «Lektion 10»):
+    // fromDisk sortiert genauso, sonst sähe jedes Nachlesen eine andere Reihenfolge.
+    const { dirName, parentDir, inside, byTitle } = MyAblage;
 
     // ---------- Ordner auf der Platte (wie in MyVoci) ----------
     // Chrome/Edge am Computer öffnen über die File System Access API einen
@@ -1065,134 +994,8 @@
     // localStorage ist nur noch Zwischenspeicher — die Liste steht sofort,
     // auch bevor der Browser den Zugriff wieder freigegeben hat. Der
     // Ordner-Handle überlebt nur in IndexedDB, nicht in localStorage.
-    const dirSupported = typeof window.showDirectoryPicker === 'function';
-    const openDb = () => new Promise((resolve, reject) => {
-      const req = indexedDB.open('mymemory', 1);
-      req.onupgradeneeded = () => req.result.createObjectStore('kv');
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-    const dbRun = async (mode, act) => {
-      const db = await openDb();
-      return new Promise((resolve, reject) => {
-        const req = act(db.transaction('kv', mode).objectStore('kv'));
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-    };
-    const loadDirHandle = () => dbRun('readonly', (kv) => kv.get('dir')).catch(() => undefined);
-    const saveDirHandle = (h) => dbRun('readwrite', (kv) => (h ? kv.put(h, 'dir') : kv.delete('dir'))).catch(() => {});
-
-    const READ_BATCH = 16;
-    const isMemoryFile = (name) => /\.(txt|md)$/i.test(name) && !name.startsWith('.');
-    const fileName = (memory) => memory.file || `${safeName(memory.title)}.txt`;
-    const memoryPath = (memory) => `${memory.dir ? safeDir(memory.dir) + '/' : ''}${fileName(memory)}`;
-    // Der Titel ist nur innerhalb eines Ordners eindeutig, nicht in der App
-    // Der Ordner geht über safeDir, wie ihn mirrorDir auf die Platte schreibt: ein
-    // Ordner «Kap. 1: Zellen» heisst dort «Kap. 1- Zellen» und muss derselbe bleiben.
-    const placeDir = (memory) => (memory.dir ? safeDir(memory.dir) : '');
-    const memoryPlace = (memory) => `${placeDir(memory)}\u0000${memory.title}`;
-    // Gleiche Datei: «Wer: Was» und «Wer? Was» (oder nur Gross/Klein, macOS/Windows)
-    // landen im selben Ordner in derselben Datei — mirrorDir schriebe beide dorthin
-    // und beim Nachlesen fiele eines weg. Darum gilt das als belegt.
-    const samePath = (a, b) => placeDir(a) === placeDir(b) && fileName(a).toLowerCase() === fileName(b).toLowerCase();
-    const sameSlot = (a, b) => memoryPlace(a) === memoryPlace(b) || samePath(a, b);
-
-    // Liest den ganzen Ordner: Memories noch ohne id (die vergibt fromDisk),
-    // Ordnerpfade wie im Store («Mathe/Klasse 8»). Dateien ohne ein einziges
-    // Paar sind keine Memories (Notizen, Listen) und bleiben aussen vor.
-    const readDir = async (root, cache = new Map()) => {
-      const files = [], folders = [];
-      // Erst den Baum ablaufen, dann die Dateien gebündelt lesen: einzeln
-      // abgewartet kostet jede Datei eine eigene Runde ins Dateisystem.
-      const walk = async (handle, dir) => {
-        for await (const [name, entry] of handle.entries()) {
-          if (name.startsWith('.')) continue;
-          if (entry.kind === 'directory') {
-            const path = dir ? `${dir}/${name}` : name;
-            folders.push(path);
-            await walk(entry, path);
-          } else if (isMemoryFile(name)) files.push({ name, dir, entry });
-        }
-      };
-      await walk(root, '');
-      // Höchstens READ_BATCH Dateien gleichzeitig, und eine Datei, die sich seit
-      // dem letzten Lesen nicht geändert hat (Grösse + Änderungszeit), wird nicht
-      // neu gelesen und geparst: der Fokus liest sonst bei jedem Fensterwechsel alles.
-      const readOne = async ({ name, dir, entry }) => {
-        const file = await entry.getFile();
-        const key = `${dir}/${name}`, hit = cache.get(key);
-        let parsed;
-        if (hit && hit.mod === file.lastModified && hit.size === file.size) parsed = hit.parsed;
-        else {
-          parsed = parseFile(await file.text(), name);
-          cache.set(key, { mod: file.lastModified, size: file.size, parsed });
-        }
-        // `file` merkt sich den echten Dateinamen nur, wenn er vom Titel
-        // abweicht («Memory_Thema.txt» mit «# Thema»): dann schreibt die App
-        // weiter dorthin, statt eine zweite Datei anzulegen. `disk` heisst «lag
-        // schon einmal im Ordner» — daran hängt, ob ein Memory, das dort fehlt,
-        // im Finder gelöscht wurde oder bloss noch nie geschrieben wurde.
-        const memory = { ...parsed, dir, disk: true };
-        if (!memory.lang) delete memory.lang;
-        return name === fileName(memory) ? memory : { ...memory, file: name };
-      };
-      const read = [];
-      for (let i = 0; i < files.length; i += READ_BATCH) read.push(...await Promise.all(files.slice(i, i + READ_BATCH).map(readOne)));
-      return { memories: read.filter((m) => m.pairs.length), folders };
-    };
-
-    const dirOf = async (root, path, create) => {
-      let h = root;
-      for (const part of path.split('/').filter(Boolean)) h = await h.getDirectoryHandle(part, { create });
-      return h;
-    };
-    const splitPath = (path) => [parentDir(path), dirName(path)];
-    const writeFile = async (root, path, text) => {
-      const [dir, name] = splitPath(path);
-      const fh = await (await dirOf(root, dir, true)).getFileHandle(name, { create: true });
-      const w = await fh.createWritable();
-      await w.write(text);
-      await w.close();
-    };
-    const removeFile = async (root, path) => {
-      const [dir, name] = splitPath(path);
-      try { await (await dirOf(root, dir, false)).removeEntry(name); } catch {}
-    };
-    const removeEmptyDir = async (root, path) => {
-      try {
-        for await (const _ of (await dirOf(root, path, false)).keys()) return; // nicht leer → bleibt stehen
-        const [dir, name] = splitPath(path);
-        await (await dirOf(root, dir, false)).removeEntry(name);
-      } catch {}
-    };
-
-    // Schreibt nur, was sich geändert hat: Diff über die id, verglichen werden
-    // Pfad und Dateiinhalt. Gelöscht → Datei weg; umbenannt/verschoben → alte
-    // Datei weg, neue hin; leer gewordene Ordner werden mitgeräumt.
-    const mirrorDir = async (root, prev, next) => {
-      const before = new Map(prev.memories.map((m) => [m.id, m]));
-      const after = new Set(next.memories.map((m) => m.id));
-      const prevFolders = allFolders(prev), nextFolders = allFolders(next);
-      for (const f of nextFolders) if (!prevFolders.includes(f)) await dirOf(root, safeDir(f), true);
-      const jobs = [];
-      for (const m of next.memories) {
-        const old = before.get(m.id);
-        if (old === m) continue; // unverändert — spart das Serialisieren
-        const path = memoryPath(m), text = toFile(m);
-        if (old && memoryPath(old) === path && toFile(old) === text) continue;
-        jobs.push((async () => {
-          if (old && memoryPath(old) !== path) await removeFile(root, memoryPath(old));
-          await writeFile(root, path, text);
-        })());
-      }
-      for (const m of prev.memories) if (!after.has(m.id)) jobs.push(removeFile(root, memoryPath(m)));
-      await Promise.all(jobs);
-      // Ordner erst danach und von innen nach aussen: ein Ordner ist nur leer,
-      // wenn seine Dateien schon weg sind.
-      const gone = prevFolders.filter((f) => !nextFolders.includes(f)).sort((a, b) => b.length - a.length);
-      for (const f of gone) await removeEmptyDir(root, safeDir(f));
-    };
+    const dirSupported = MyAblage.dirSupported();
+    const { load: loadDirHandle, save: saveDirHandle } = MyAblage.handleStore('mymemory');
 
     // «Ergänzt, was fehlt»: vorhandene Paare bleiben in ihrer Reihenfolge, neue
     // kommen hinten dazu — beim Verbinden verschluckt eine ältere Datei so
@@ -1203,49 +1006,18 @@
       return [...a, ...b.filter((p) => !has.has(pairKey(p)))];
     };
 
-    // Vom Ordner in den Store. Die id soll am richtigen Memory kleben bleiben
-    // (Lesezeichen auf #local=<id>, ein offener Editor). `keepAll` gilt nur beim
-    // ausdrücklichen Verbinden: dann bleibt auch, was schon einmal im Ordner lag
-    // (Ordnerwechsel). Sonst bleiben nur Memories ohne `disk` — was dort fehlt
-    // und dort schon lag, wurde im Finder gelöscht.
-    // Zurück kommt neben dem neuen Stand auch `onDisk`: der reine Inhalt des
-    // Ordners, gegen den mirrorDir seine Differenz bildet.
-    const fromDisk = (prev, disk, keepAll, known = new Set()) => {
-      // Auf der Platte war ein Memory, wenn es von dort kam (`disk`) oder wir es
-      // dorthin geschrieben haben (`known`) — sonst käme ein im Finder gelöschtes,
-      // eben erst gespeichertes Memory beim nächsten Fokus zurück.
-      const onPlatte = (m) => m.disk || known.has(m.id);
-      const byPlace = new Map(prev.memories.map((m) => [memoryPlace(m), m]));
-      const used = new Set();
-      const take = (d, old) => {
-        used.add(old.id);
-        return { ...d, id: old.id, ...(keepAll ? { pairs: mergePairs(d.pairs, old.pairs) } : {}) };
-      };
-      // Erst der sichere Treffer: gleicher Ordner, gleicher Titel.
-      const first = disk.memories.map((d) => {
-        const old = byPlace.get(memoryPlace(d));
-        return old && !used.has(old.id) ? take(d, old) : { ...d, id: null };
-      });
-      // Dann verschoben oder umbenannt: nur Memories, die schon im Ordner lagen
-      // und deren Titel auf beiden Seiten genau einmal vorkommt.
-      const free = new Map();
-      for (const m of prev.memories) if (!used.has(m.id) && onPlatte(m)) free.set(m.title, free.has(m.title) ? null : m);
-      const want = {};
-      for (const d of first) if (!d.id) want[d.title] = (want[d.title] || 0) + 1;
-      const memories = first.map((d) => {
-        const old = d.id ? null : want[d.title] === 1 ? free.get(d.title) : null;
-        return d.id ? d : old ? take(d, old) : { ...d, id: newId() };
-      });
-      // Bewusst nicht aus `memories` abgeleitet: dort stecken beim Verbinden
-      // schon die ergänzten Paare, und die soll mirrorDir ja noch schreiben.
-      const onDisk = { memories: disk.memories.map((d, i) => ({ ...d, id: memories[i].id })).sort(byTitle), folders: disk.folders };
-      const local = prev.memories.filter((m) => !used.has(m.id) && (keepAll || !onPlatte(m)));
-      const next = {
-        memories: [...memories, ...local].sort(byTitle),
-        folders: [...new Set([...disk.folders, ...(keepAll ? prev.folders : [])])],
-      };
-      return { next, onDisk };
-    };
+    // Das Format von MyMemory für den gemeinsamen Ordner-Abgleich: die Sammlung
+    // heisst { memories, folders }, der Inhalt eines Memorys `pairs`.
+    const ablage = MyAblage.sammlung({
+      list: 'memories',
+      items: 'pairs',
+      fallback: 'Memory',
+      toFile, parseFile,
+      merge: mergePairs,
+      newId: () => newId(), // steht erst weiter unten
+    });
+    // allFolders/remapDir: gebunden an { memories, folders }
+    const { fileName, sameSlot, slotTaken, readDir, mirrorDir, fromDisk, allFolders, remapDir } = ablage;
 
     // Beispiele ein-/ausblenden: Knopf an der Beispiel-Liste, zurück über die
     // Einstellungen — beide hören auf denselben Wert. Er steht im Speicher der Seite,
@@ -1271,34 +1043,10 @@
     // ---------- Direktlinks: Memory komprimiert im URL-Fragment ----------
     // Die Daten stehen nach dem # — sie verlassen den Browser nicht einmal
     // Richtung Server. Format: #m=1.<deflate+base64url> bzw. #m=0.<base64url>.
-    const b64urlEncode = (bytes) => {
-      let bin = '';
-      for (let i = 0; i < bytes.length; i += 0x8000) {
-        bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-      }
-      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    };
-    const b64urlDecode = (str) =>
-      Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
-
-    const encodeMemory = async (memory) => {
-      const json = new TextEncoder().encode(
-        JSON.stringify([memory.title, memory.pairs.map((p) => [p.question, p.answer])])
-      );
-      if (window.CompressionStream) {
-        const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-        return '1.' + b64urlEncode(new Uint8Array(await new Response(stream).arrayBuffer()));
-      }
-      return '0.' + b64urlEncode(json);
-    };
+    const encodeMemory = (memory) => MyAblage.packLink([memory.title, memory.pairs.map((p) => [p.question, p.answer])]);
 
     const decodeMemory = async (data) => {
-      const version = data.slice(0, 1);
-      const bytes = b64urlDecode(data.slice(2));
-      const json = version === '1'
-        ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()
-        : new TextDecoder().decode(bytes);
-      const [title, rawPairs] = JSON.parse(json);
+      const [title, rawPairs] = await MyAblage.unpackLink(data);
       return { title, pairs: rawPairs.map(([question, answer]) => ({ question, answer })) };
     };
 
@@ -1982,7 +1730,7 @@
 
       // Ein Memory als .txt herunterladen — dieselbe Datei, die der Import frisst
       const exportOne = (memory) => {
-        download(`${safeName(memory.title)}.txt`, toFile(memory));
+        download(fileName(memory), toFile(memory));
         showToast(t('downloadedOne', memory.title));
       };
 
@@ -1990,7 +1738,7 @@
       const exportAll = async () => {
         if (!own.length) { showToast(t('noOwnMemories')); return; }
         try {
-          download('MyMemory.zip', await zipBlob(own, folders));
+          download('MyMemory.zip', await ablage.zipBlob({ memories: own, folders }));
         } catch {
           showToast(t('zipFailed'));
           return;
@@ -2105,11 +1853,17 @@
           // weggeräumt haben. Beim Ordner wandert der gemerkte Zustand mit.
           if (item.kind === 'memory') folderApi.moveMemory(item.id, dir);
           else {
-            const target = folderApi.moveFolder(item.id, dir);
-            rememberOpen(openDirs.map((d) => (inside(d, item.id) ? target + d.slice(item.id.length) : d)));
+            followMove(item.id, folderApi.moveFolder(item.id, dir), dirName(item.id));
           }
         },
       });
+
+      // Nach dem Umhängen/Umbenennen wandern die aufgeklappten Ordner mit;
+      // `false` = am Ziel liegt schon ein Ordner, null = nichts geschehen
+      const followMove = (from, target, shown) => {
+        if (target === false) showToast(t('folderExists', shown));
+        else if (target) rememberOpen(openDirs.map((d) => (inside(d, from) ? target + d.slice(from.length) : d)));
+      };
 
       const newFolder = (parent) => setDialog({
         kind: 'prompt', ok: t('create'),
@@ -2123,8 +1877,7 @@
       const renameFolder = (dir) => setDialog({
         kind: 'prompt', ok: t('rename'), label: t('askRename'), preset: dirName(dir),
         onOk: (name) => {
-          const target = folderApi.renameFolder(dir, name);
-          if (target) rememberOpen(openDirs.map((d) => (inside(d, dir) ? target + d.slice(dir.length) : d)));
+          followMove(dir, folderApi.renameFolder(dir, name), name);
         },
       });
 
@@ -2402,7 +2155,7 @@
         // Ort (Ordner + Titel) und Datei sind der Schlüssel beim Import und beim
         // Spiegeln in den Ordner: zwei Memories am selben Ort würden sich
         // gegenseitig ersetzen bzw. überschreiben — gar nicht erst entstehen lassen.
-        if (memories.some((m) => m.id !== memory.id && sameSlot(m, { ...memory, title: name, dir }))) {
+        if (slotTaken(memories, { ...memory, title: name, dir }, memory.id)) {
           return setError(t('errTitleTaken'));
         }
         if (!clean.length) return setError(t('errNoPair'));
@@ -2868,12 +2621,9 @@
       // zurückgeschrieben — sonst bügelte die App jede von Hand geschriebene
       // Datei in ihr eigenes Format.
       const mirrored = useRef(null);
-      const readCache = useRef(new Map()); // Dateien, die sich nicht geändert haben, nicht neu parsen
-      const known = useRef(new Set()); // ids, die wir in den Ordner geschrieben haben (s. fromDisk)
-      // Alle Ordner-Zugriffe hintereinander: ein Nachlesen darf nicht in ein
-      // halb geschriebenes Memory hineinlesen.
-      const queue = useRef(Promise.resolve());
-      const enqueue = (job) => (queue.current = queue.current.then(job).catch((e) => {
+      // Alle Ordner-Zugriffe hintereinander (MyAblage.queue): ein Nachlesen darf
+      // nicht in ein halb geschriebenes Memory hineinlesen.
+      const [enqueue] = useState(() => MyAblage.queue((e) => {
         console.error(e);
         // nach dem Trennen schweigen; das Handle kommt von `wanted`, denn beim Start und
         // beim ersten Verbinden steht es noch nicht im Zustand
@@ -2883,12 +2633,12 @@
         wanted.current = handle;
         return enqueue(async () => {
           const seen = storeRef.current;
-          const disk = await readDir(handle, readCache.current);
+          const disk = await readDir(handle);
           if (wanted.current !== handle) return;
           // Hat sich der Store während des Lesens geändert, ist der Plattenstand
           // veraltet (der Spiegel-Auftrag dazu steht erst hinter uns): nach ihm neu lesen.
           if (storeRef.current !== seen) { takeDisk(handle, keepAll); return; }
-          const { next, onDisk } = fromDisk(storeRef.current, disk, keepAll, known.current);
+          const { next, onDisk } = fromDisk(storeRef.current, disk, keepAll, handle);
           mirrored.current = onDisk;
           // Der Fokus liest bei jedem Fensterwechsel nach; hat sich nichts
           // getan, soll weder localStorage noch die Liste etwas davon merken.
@@ -2913,7 +2663,6 @@
         enqueue(async () => {
           if (wanted.current !== link.handle) return; // Ordner inzwischen gewechselt oder getrennt
           try { await mirrorDir(link.handle, base, store); } catch (e) { mirrored.current = base; throw e; }
-          store.memories.forEach((m) => known.current.add(m.id));
         });
       }, [store, link]);
       // Im Finder abgelegte oder gelöschte Dateien erscheinen beim Wechsel
@@ -2928,7 +2677,7 @@
         let handle;
         // Beim ersten Mal in «Dokumente», wo auch MyVoci und MyKahoot liegen; danach
         // merkt sich der Browser über `id` den zuletzt gewählten Ort.
-        try { handle = await window.showDirectoryPicker({ mode: 'readwrite', id: 'mymemory', startIn: 'documents' }); }
+        try { handle = await MyAblage.pickDir('mymemory'); }
         catch { return; } // abgebrochen
         await saveDirHandle(handle);
         takeDisk(handle, true);
@@ -2940,7 +2689,7 @@
           if ((await link.handle.requestPermission({ mode: 'readwrite' })) === 'granted') takeDisk(link.handle, false);
         } catch { setLink((d) => ({ ...d, status: 'error' })); }
       };
-      const disconnectDir = () => { wanted.current = null; saveDirHandle(null); mirrored.current = null; readCache.current.clear(); known.current.clear(); setLink({ handle: null, status: 'none' }); };
+      const disconnectDir = () => { if (link.handle) ablage.forget(link.handle); wanted.current = null; saveDirHandle(null); mirrored.current = null; setLink({ handle: null, status: 'none' }); };
       const dirApi = {
         status: link.status, name: link.handle ? link.handle.name : '',
         connect: connectDir, reconnect: reconnectDir, disconnect: disconnectDir, refresh: () => takeDisk(link.handle, false),
@@ -2973,7 +2722,7 @@
       });
 
       const saveMemory = (memory) => {
-        const saved = memory.id ? memory : { ...memory, id: newId() };
+        const saved = ablage.prepareSave(store, memory); // neue id bzw. Datei zieht beim Umbenennen mit
         putMemory(saved, (m) => m.id !== saved.id);
         back();
       };
@@ -2985,30 +2734,19 @@
       // Die Namen kommen aus den Dialogen (s. AskModal); '/' trennt hier die
       // Ebenen, und was ein Dateisystem stört (: ? " …) kommt gar nicht erst in
       // einen Ordnernamen — sonst hiesse der Ordner auf der Platte anders.
-      const cleanName = (name) => (name || '').replace(/[\\/:*?"<>|]+/g, '-').trim().replace(/^\.+$/, '-');
-
+      // Ziele und Wächter (Vorgabe unverändert, Ziel belegt, Gross/Klein) kommen aus
+      // dem Modul: zurück kommt der Pfad, null = nichts tun, false = Ziel belegt.
       const makeFolder = (parent, rawName) => {
-        const name = cleanName(rawName);
-        if (!name) return null;
-        const path = parent ? `${parent}/${name}` : name;
-        updateStore((prev) => (prev.folders.includes(path) ? prev : { ...prev, folders: [...prev.folders, path] }));
+        const path = ablage.newFolderPath(store, parent, rawName);
+        if (path) updateStore((prev) => (prev.folders.includes(path) ? prev : { ...prev, folders: [...prev.folders, path] }));
         return path;
       };
-
-      const renameFolder = (dir, rawName) => {
-        const name = cleanName(rawName);
-        if (!name) return null;
-        const target = parentDir(dir) ? `${parentDir(dir)}/${name}` : name;
-        if (target === dir) return null;
-        updateStore((prev) => remapDir(prev, dir, target));
+      const applyMove = (dir, target) => {
+        if (target) updateStore((prev) => remapDir(prev, dir, target));
         return target;
       };
-
-      const moveFolder = (dir, parent) => {
-        const target = parent ? `${parent}/${dirName(dir)}` : dirName(dir);
-        updateStore((prev) => remapDir(prev, dir, target));
-        return target;
-      };
+      const renameFolder = (dir, rawName) => applyMove(dir, ablage.renameFolderTarget(store, dir, rawName));
+      const moveFolder = (dir, parent) => applyMove(dir, ablage.moveFolderTarget(store, dir, parent));
 
       const removeFolder = (dir) =>
         updateStore((prev) => ({ ...prev, folders: prev.folders.filter((f) => f !== dir) }));

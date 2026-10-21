@@ -20,15 +20,17 @@ versteckten `<div>` im `<body>`: das Tailwind-CDN baut sein CSS neu, sobald es e
 Klassennamen zum ersten Mal im DOM sieht (`safelist` hilft dagegen nicht).
 **Kein Build-Schritt, kein Backend.** Daten im Browser
 (`localStorage`) bzw. komprimiert im URL-Fragment (`#m=…`). Optional (Chrome/Edge am
-Computer) liegen die Memories als `.txt` in einem verknüpften Ordner — Logik aus
-MyVoci (`readDir`/`fromDisk`/`mirrorDir`, Handle in IndexedDB `mymemory`→`kv`→`dir`,
-`mirrored`-Ref, eine Promise-Kette, Nachlesen beim Fenster-Fokus); Begründungen dort
-in der CLAUDE.md. Abweichungen: Identität eines Memorys ist Ordner + Titel
-(`memoryPlace`, Ordner über `safeDir`) bzw. dieselbe Datei (`sameSlot`) — Import und
-Editor prüfen dagegen; `known`-Ref (ids, die wir geschrieben haben) statt nur
-`disk`-Flag; `readDir` liest gebündelt und cached nach Grösse + Änderungszeit;
-`takeDisk` verwirft einen Lesestand, wenn sich der Store währenddessen geändert hat.
-Ordnernamen gehen durch `cleanName` (keine Dateisystem-Zeichen).
+Computer) liegen die Memories als `.txt` in einem verknüpften Ordner. Der Code dafür
+— Namen (`plainName`: ohne Umlaute/Sonderzeichen, alte Dateien behalten ihren Namen
+über `file`), Ort (Ordner + Titel ohne Gross/Klein), `readDir`/`mirrorDir`/`fromDisk`,
+ZIP, Download, Link-Kodierung — kommt seit 2026-10-21 aus `design/js/my-ablage.js`,
+Regeln in `design/ABLAGE.md` (beides aus `~/MySuite`, `sync.sh memory`, nie hier
+ändern). Hier steht nur das Format dafür (`ablage = MyAblage.sammlung({ list:
+'memories', items: 'pairs', … })`) und was React braucht: `mirrored`, `takeDisk`
+(verwirft einen Lesestand, wenn sich der Store währenddessen geändert hat),
+`enqueue` (`MyAblage.queue`). Was `mirrorDir` geschrieben hat, merkt sich das Modul je
+Ordner (zählt in `fromDisk` wie `disk`, `ablage.forget` beim Trennen). Handle in IndexedDB
+`mymemory`→`kv`→`dir`.
 Ordner wählen wie MyVoci: Angebot unter der Liste, Knöpfe (wählen/freigeben/neu laden/trennen)
 in den Einstellungen der Übersicht; der Picker startet in «Dokumente» (`startIn`).
 
@@ -36,6 +38,7 @@ in den Einstellungen der Übersicht; der Picker startet in «Dokumente» (`start
 
 ```bash
 python3 -m http.server 8765        # lokal ansehen: http://127.0.0.1:8765/
+node tools/test-ordner.js          # Ordner-Weg headless (nach jedem sync.sh memory; braucht Playwright, PLAYWRIGHT=<Pfad>)
 ~/MySuite/sync.sh memory            # Design-Dateien neu nach design/ kopieren
 ```
 
