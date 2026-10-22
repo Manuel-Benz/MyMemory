@@ -33,12 +33,12 @@ Ordner (zählt in `fromDisk` wie `disk`, `ablage.forget` beim Trennen). Handle i
 `mymemory`→`kv`→`dir`.
 Ordner wählen wie MyVoci: Angebot unter der Liste, Knöpfe (wählen/freigeben/neu laden/trennen)
 in den Einstellungen der Übersicht; der Picker startet in «Dokumente» (`startIn`).
-**Erstellen wie MyVoci** (ABLAGE.md): `CreateBox` mit einem Einfügefeld und Vorschau
+**Erstellen wie MyVoci** (ABLAGE.md): `CreateBox` mit **einem Feld** für Text oder Datei (die Textarea nimmt den Drop) und Vorschau
 (Titel aus `# Titel`, `null` = folgt dem Text; Ordner `into`; Paare mit `MathRenderer`;
 bis zu drei Zeilen aus `strayOf`). Das `+` bei «Meine Memories» und an jedem Ordner
 öffnet den Kasten (`create(dir)`), «von Hand» darin führt in den Editor. Alle neuen
 Memories gehen über `addMemory` (fragt «ersetzen?», klappt den Ordner auf); die
-Fenster-Ablage liest die Liste über `ownRef`. Ein Link `#m=` wird ein eigenes Memory
+Fenster-Ablage liest die Liste über `ownRef`; eine einzelne Datei (Fenster oder Ordner) geht über `dropFiles` in den Kasten (`takeFile`, Ref aus `CreateBox`). Ein Link `#m=` wird ein eigenes Memory
 (`keepLink`, wie MyVoci): gleicher Ort im Hauptordner wird still ersetzt, ein
 unverändertes Exemplar irgendwo nur geöffnet, dann `#local=`. Der Link trägt
 `[Titel, Paare, Sprache]`, die Sprache hinten und nur wenn gesetzt. Sicherung in den

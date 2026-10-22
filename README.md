@@ -44,7 +44,7 @@ Alles steckt im aufklappbaren Kästchen **„Memory erstellen"**:
    Klasse, Anzahl Paare, **Sprache des Memorys**); Material wie ein PDF einfach
    anhängen.
 2. Die KI liefert eine `.txt`-Datei **und** denselben Text zum Kopieren. Den
-   Text ins Feld einfügen oder die Datei auf die Fläche darunter ziehen. Die
+   Text ins Feld einfügen oder die Datei ins Feld (oder aufs Fenster) ziehen. Die
    **Vorschau** zeigt Titel (aus `# Titel`), Ordner, die erkannten Paare und
    Zeilen, die nicht verstanden wurden; **„In die Sammlung"** legt das Memory an.
    Gibt es den Titel im Ordner schon, fragt sie „Ersetzen?".

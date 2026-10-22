@@ -163,6 +163,17 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await until(() => JSON.parse(localStorage.getItem('mymemory')).memories.some((m) => m.title === 'Hauptstädte' && m.pairs[0].question === 'Frankreich'));
   const replaced = (await store()).memories.filter((m) => m.title === 'Hauptstädte');
   check(replaced.length === 1 && replaced[0].lang === 'de', 'ersetzt statt verdoppelt, Sprache bleibt');
+  check(!(await page.locator('#create input[type=file]').count()), 'ein Feld für Text und Datei, kein «Datei wählen»');
+  // Eine Datei auf einen Ordner gezogen: Kasten mit diesem Ordner, Text sichtbar im Feld
+  await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(['F: Spanien\nA: Madrid\n---\n'], 'Gezogen.txt', { type: 'text/plain' }));
+    const row = [...document.querySelectorAll('.liste-zeile')].find((r) => r.textContent.includes('Französisch'));
+    row.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+  });
+  await prev.waitFor();
+  check(await title.inputValue() === 'Gezogen' && (await box.inputValue()).includes('Madrid') && (await prev.innerText()).includes('Französisch'),
+    'Datei auf «Französisch» gezogen: im Feld, Vorschau mit diesem Ordner');
 
   // Sicherung: herunterladen (ohne Ordner-Buchführung), ergänzt einlesen
   await page.click('button[title="Settings"], button[title="Einstellungen"]');

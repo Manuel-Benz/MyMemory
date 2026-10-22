@@ -18,7 +18,9 @@ Dazugekommen:
   ohne `Memory_` und mit Abschnitt TITEL, Sicherung, Link wird ein eigenes Memory
   (trägt jetzt auch die Sprache). Headless-Test entsprechend erweitert.
 - **«Memory erstellen»** als ein ein-/ausklappbares Kästchen — Anleitung,
-  KI-Prompt, Einfügefeld mit Vorschau, Ablage-Fläche, von Hand.
+  KI-Prompt, ein Feld für Text oder Datei mit Vorschau, von Hand (22.10.2026:
+  Ablagefläche ins Feld aufgegangen; eine einzelne Datei aufs Fenster oder einen
+  Ordner gezogen kommt in den Kasten, mehrere direkt in die Sammlung).
 - **Editor** (`#edit=<id>` / `#new=<ordner>`): Titel, Ordner und Paare
   bearbeiten, hinzufügen, umsortieren, löschen — mit LaTeX-Vorschau.
 - **Ordner** wie in MyKahoot: beliebig tief, anlegen/umbenennen/löschen (nur
